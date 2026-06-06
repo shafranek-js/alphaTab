@@ -213,7 +213,38 @@ export class TrackItem implements Mountable {
 
         this.instrument.value = String(track.playbackInfo.program);
         this.instrument.addEventListener('change', () => {
-            this.track.playbackInfo.program = Number(this.instrument.value);
+            const program = Number(this.instrument.value);
+            this.track.playbackInfo.program = program;
+
+            if (this.api.score) {
+                const primaryChan = this.track.playbackInfo.primaryChannel;
+                const secondaryChan = this.track.playbackInfo.secondaryChannel;
+                for (const t of this.api.score.tracks) {
+                    if (t.playbackInfo.primaryChannel === primaryChan) {
+                        t.playbackInfo.program = program;
+                    }
+                    if (t.playbackInfo.secondaryChannel === secondaryChan) {
+                        t.playbackInfo.program = program;
+                    }
+                }
+
+                // Synchronize all select elements in the UI sharing the same channels
+                const selectElements = document.querySelectorAll<HTMLSelectElement>('.track-instrument');
+                for (const select of selectElements) {
+                    const trackItem = select.closest('.track-item');
+                    if (trackItem) {
+                        const checkbox = trackItem.querySelector<HTMLInputElement>('input[type="checkbox"]');
+                        if (checkbox) {
+                            const trackIndex = Number(checkbox.id.replace('t-', ''));
+                            const t = this.api.score.tracks[trackIndex];
+                            if (t) {
+                                select.value = String(t.playbackInfo.program);
+                            }
+                        }
+                    }
+                }
+            }
+
             this.api.loadMidiForScore();
         });
 
