@@ -114,6 +114,17 @@ injectStyles(
         border-color: #dc3545;
         color: #fff;
     }
+    .track-item select {
+        width: 8rem;
+        min-height: 1.8rem;
+        padding: 2px 4px;
+        border: 1px solid #dadde1;
+        border-radius: 4px;
+        background: #fff;
+        color: #1c1e21;
+        font: inherit;
+        font-size: 12px;
+    }
 `
 );
 
@@ -129,6 +140,7 @@ export class TrackItem implements Mountable {
     private volume: HTMLInputElement;
     private transposeFull: HTMLInputElement;
     private transposeAudio: HTMLInputElement;
+    private instrument: HTMLSelectElement;
 
     constructor(
         private api: alphaTab.AlphaTabApi,
@@ -145,6 +157,28 @@ export class TrackItem implements Mountable {
                     <div class="settings-item-control">
                         <button type="button" class="track-button success" title="Solo" aria-label="Solo"></button>
                         <button type="button" class="track-button danger" title="Mute" aria-label="Mute"></button>
+                    </div>
+                </div>
+                <div class="settings-item">
+                    <div class="settings-item-label">Instrument</div>
+                    <div class="settings-item-control">
+                        <select class="track-instrument">
+                            <option value="0">Piano</option>
+                            <option value="24">Nylon Guitar</option>
+                            <option value="25">Steel Guitar</option>
+                            <option value="26">Jazz Guitar</option>
+                            <option value="27">Clean Guitar</option>
+                            <option value="28">Muted Guitar</option>
+                            <option value="29">Overdriven Guitar</option>
+                            <option value="30">Distortion Guitar</option>
+                            <option value="33">Finger Bass</option>
+                            <option value="34">Pick Bass</option>
+                            <option value="40">Violin</option>
+                            <option value="48">Strings</option>
+                            <option value="56">Trumpet</option>
+                            <option value="73">Flute</option>
+                            <option value="116">Taiko Drum</option>
+                        </select>
                     </div>
                 </div>
                 <div class="settings-item">
@@ -175,6 +209,13 @@ export class TrackItem implements Mountable {
         this.volume = this.root.querySelector<HTMLInputElement>('.track-volume')!;
         this.transposeFull = this.root.querySelector<HTMLInputElement>('.track-transpose-full')!;
         this.transposeAudio = this.root.querySelector<HTMLInputElement>('.track-transpose-audio')!;
+        this.instrument = this.root.querySelector<HTMLSelectElement>('.track-instrument')!;
+
+        this.instrument.value = String(track.playbackInfo.program);
+        this.instrument.addEventListener('change', () => {
+            this.track.playbackInfo.program = Number(this.instrument.value);
+            this.api.loadMidiForScore();
+        });
 
         this.soloBtn.appendChild(fontAwesomeIcon(FontAwesomeIcons.Solo));
         this.muteBtn.appendChild(fontAwesomeIcon(FontAwesomeIcons.Mute));
