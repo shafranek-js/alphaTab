@@ -43,6 +43,21 @@ Node.js using `import` (ESM) | Access to all low level APIs and SVG rendering | 
 .net8.0-windows (WinForms) | Full experience including low level APIs, Background Workers, Audio Playback (through NAudio), SVG and HTML5 rendering. UI level integration for user interaction and automatic resizing. Reduced UI level integration related to transparency and animations. | 1.3
 Android (Kotlin) | Full experience including low level APIs, Background Workers, Audio Playback, Android Canvas and SVG rendering. UI level integration for user interaction and automatic resizing. Reduced UI level integration related to transparency and animations. | 1.3
 
+## Running the Playground Locally
+
+To run the playground of `alphaTab` locally for development and testing:
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the developer server:
+   ```bash
+   npm run dev
+   ```
+
+This runs the Vite-based playground. Open the displayed local address (e.g., `http://localhost:5173`) in your browser.
+
 ## Thanks to...
 
 ... our friends of BrowserStack for a free plan. This allows me to test alphaTab on all browsers on all operating systems. Only with this I can ensure that alphaTab is shown to all your visitors as expected.
