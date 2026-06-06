@@ -62,10 +62,10 @@ injectStyles(
         min-width: 1.8rem;
         min-height: 1.7rem;
         padding: 0.2rem 0.4rem;
-        border: 1px solid #dadde1;
+        border: 1px solid var(--at-border);
         border-radius: 4px;
-        background: #fff;
-        color: #1c1e21;
+        background: var(--at-bg);
+        color: var(--at-text);
         cursor: pointer;
         font: inherit;
         font-size: 12px;
@@ -89,12 +89,12 @@ injectStyles(
         color: #fff;
     }
     .track-item .button--secondary {
-        background: #ebedf0;
-        border-color: #dadde1;
-        color: #1c1e21;
+        background: var(--at-track-active-bg);
+        border-color: var(--at-border);
+        color: var(--at-text);
     }
     .track-item .button--outline {
-        background: #fff;
+        background: var(--at-bg);
     }
     .track-item .button[disabled] {
         opacity: 0.45;
@@ -118,10 +118,10 @@ injectStyles(
         width: 8rem;
         min-height: 1.8rem;
         padding: 2px 4px;
-        border: 1px solid #dadde1;
+        border: 1px solid var(--at-border);
         border-radius: 4px;
-        background: #fff;
-        color: #1c1e21;
+        background: var(--at-bg);
+        color: var(--at-text);
         font: inherit;
         font-size: 12px;
     }

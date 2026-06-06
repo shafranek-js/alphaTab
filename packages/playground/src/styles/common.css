@@ -31,6 +31,28 @@
     --at-cursor-bar: rgba(255, 242, 0, 0.25);
     --at-selection: rgba(64, 64, 255, 0.2);
     --at-highlight: #0078ff;
+
+    /* Global backgrounds and texts */
+    --at-bg: #ffffff;
+    --at-text: #1c1e21;
+    --at-border: rgba(0, 0, 0, 0.12);
+}
+
+:root.dark-theme {
+    --at-accent: #6ba4e8;
+    --at-accent-hover: #8fc2ff;
+    --at-footer-bg: #1e293b;
+    --at-footer-fg: #f8fafc;
+    --at-divider: rgba(255, 255, 255, 0.1);
+    --at-sidebar-bg: #0f172a;
+    --at-track-active-bg: rgba(255, 255, 255, 0.05);
+    --at-selection: rgba(107, 164, 232, 0.3);
+    --at-highlight: #3b82f6;
+
+    /* Dark theme overrides */
+    --at-bg: #0f172a;
+    --at-text: #f8fafc;
+    --at-border: rgba(255, 255, 255, 0.12);
 }
 
 *,

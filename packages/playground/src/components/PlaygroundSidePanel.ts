@@ -23,9 +23,9 @@ injectStyles(
         max-width: calc(100% - 2rem);
         display: flex;
         flex-direction: column;
-        color: #1f2328;
-        background: #f7f7f7;
-        border: 1px solid rgba(0, 0, 0, 0.12);
+        color: var(--at-text);
+        background: var(--at-sidebar-bg);
+        border: 1px solid var(--at-border);
         border-radius: 6px;
         box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.2),
                     0 4px 5px 0 rgba(0, 0, 0, 0.14),
@@ -61,11 +61,11 @@ injectStyles(
         min-width: 2rem;
         min-height: 2rem;
         padding: 0.4rem 0.5rem;
-        color: #1c1e21;
+        color: var(--at-text);
         background: transparent;
     }
     .at-side-panel-close:hover:not([disabled]) {
-        background: rgba(0, 0, 0, 0.06);
+        background: rgba(128, 128, 128, 0.15);
     }
     .at-side-panel-content {
         flex: 1 1 auto;
@@ -75,7 +75,7 @@ injectStyles(
     }
     .at-side-panel-section {
         padding: 0.5rem 0;
-        border-bottom: 2px dashed rgba(0, 0, 0, 0.16);
+        border-bottom: 2px dashed var(--at-border);
     }
     .at-side-panel-section > h4 {
         margin: 0 0 8px;
@@ -108,10 +108,10 @@ injectStyles(
         width: 128px;
         min-height: 32px;
         padding: 4px 8px;
-        border: 1px solid rgba(0, 0, 0, 0.14);
+        border: 1px solid var(--at-border);
         border-radius: 4px;
-        background: #fff;
-        color: inherit;
+        background: var(--at-bg);
+        color: var(--at-text);
         font: inherit;
     }
     .at-settings-control > output {
@@ -130,7 +130,7 @@ injectStyles(
         padding: 4px 10px;
         border: 0;
         border-right: 1px solid var(--at-accent);
-        background: #fff;
+        background: var(--at-bg);
         color: var(--at-accent);
         cursor: pointer;
         font: inherit;
@@ -152,19 +152,19 @@ injectStyles(
         padding: 4px 10px;
         border: 1px solid var(--at-accent);
         border-radius: 4px;
-        background: #fff;
+        background: var(--at-bg);
         color: var(--at-accent);
         cursor: pointer;
         font: inherit;
     }
     .at-panel-action:hover {
-        background: rgba(73, 114, 161, 0.08);
+        background: rgba(128, 128, 128, 0.08);
     }
     .at-side-panel .at-track-list {
         padding: 4px 0;
     }
     .at-side-panel .at-track:nth-child(even) {
-        background: #ebedf0;
+        background: var(--at-track-active-bg);
     }
     .at-side-panel .at-track {
         padding: 8px 10px;
@@ -257,6 +257,7 @@ export class PlaygroundSidePanel implements Mountable {
     private buildSettings(): void {
         this.settingsView.replaceChildren(
             this.section('Display ▸ General', [
+                this.themeRow(),
                 this.engineRow(),
                 this.rangeRow('Scale', 0.25, 2, 0.25, this.api.settings.display.scale, value => {
                     this.api.settings.display.scale = value;
@@ -403,6 +404,56 @@ export class PlaygroundSidePanel implements Mountable {
         const section = parseHtml(html`<section class="at-side-panel-section"><h4>${title}</h4></section>`);
         section.append(...children);
         return section;
+    }
+
+    private themeRow(): HTMLElement {
+        const row = this.row('App Theme');
+        const control = row.querySelector('.at-settings-control')!;
+        const group = parseHtml(html`
+            <div class="at-segmented" role="group" aria-label="App theme">
+                <button type="button" data-theme="light">Light</button>
+                <button type="button" data-theme="dark">Dark</button>
+            </div>
+        `);
+        const currentTheme = document.documentElement.classList.contains('dark-theme') ? 'dark' : 'light';
+        for (const button of group.querySelectorAll<HTMLButtonElement>('button')) {
+            button.classList.toggle('active', button.dataset.theme === currentTheme);
+            button.addEventListener('click', () => {
+                for (const b of group.querySelectorAll('button')) {
+                    b.classList.toggle('active', b === button);
+                }
+                const isDark = button.dataset.theme === 'dark';
+                document.documentElement.classList.toggle('dark-theme', isDark);
+
+                // Update alphaTab rendering colors to match the theme
+                this.applyThemeToScore(isDark);
+                this.buildSettings(); // Rebuild panel settings to sync color pickers
+            });
+        }
+        control.appendChild(group);
+        return row;
+    }
+
+    private applyThemeToScore(isDark: boolean): void {
+        const resources = this.api.settings.display.resources;
+        if (isDark) {
+            resources.staffLineColor = new alphaTab.model.Color(200, 200, 200, 100);
+            resources.barSeparatorColor = new alphaTab.model.Color(200, 200, 200, 150);
+            resources.barNumberColor = new alphaTab.model.Color(150, 150, 150, 255);
+            resources.mainGlyphColor = new alphaTab.model.Color(240, 240, 240, 255);
+            resources.secondaryGlyphColor = new alphaTab.model.Color(180, 180, 180, 255);
+            resources.scoreInfoColor = new alphaTab.model.Color(240, 240, 240, 255);
+        } else {
+            // Restore default light colors
+            resources.staffLineColor = new alphaTab.model.Color(0, 0, 0, 60);
+            resources.barSeparatorColor = new alphaTab.model.Color(0, 0, 0, 128);
+            resources.barNumberColor = new alphaTab.model.Color(0, 0, 0, 255);
+            resources.mainGlyphColor = new alphaTab.model.Color(0, 0, 0, 255);
+            resources.secondaryGlyphColor = new alphaTab.model.Color(0, 0, 0, 255);
+            resources.scoreInfoColor = new alphaTab.model.Color(0, 0, 0, 255);
+        }
+        this.api.updateSettings();
+        this.api.render();
     }
 
     private engineRow(): HTMLElement {

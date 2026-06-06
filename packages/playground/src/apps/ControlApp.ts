@@ -17,7 +17,8 @@ injectStyles(
         height: 100vh;
         margin: 0;
         border: 0;
-        background: #fff;
+        background: var(--at-bg);
+        color: var(--at-text);
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -27,7 +28,7 @@ injectStyles(
         flex: 1 1 auto;
         overflow: hidden;
         position: relative;
-        background: #fff;
+        background: var(--at-bg);
     }
     .at-wrap .at-viewport {
         overflow-y: auto;
