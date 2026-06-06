@@ -36,18 +36,6 @@ export class TrackList implements Mountable {
 
         for (const track of score.tracks) {
             const item = new TrackItem(this.api, track);
-            item.onSelect = e => {
-                e.stopPropagation();
-                if (!e.ctrlKey) {
-                    this.selection.clear();
-                    this.selection.set(track.index, track);
-                } else if (this.selection.has(track.index)) {
-                    this.selection.delete(track.index);
-                } else {
-                    this.selection.set(track.index, track);
-                }
-                this.api.renderTracks(Array.from(this.selection.values()).sort((a, b) => a.index - b.index));
-            };
             this.items.push(item);
             this.root.appendChild(item.root);
         }

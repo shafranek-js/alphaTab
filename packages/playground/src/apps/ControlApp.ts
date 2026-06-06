@@ -3,9 +3,8 @@ import { Crosshair } from '../components/Crosshair';
 import { DragDrop } from '../components/DragDrop';
 import { Footer } from '../components/Footer';
 import { LoadingOverlay } from '../components/LoadingOverlay';
-import { NavMenu } from '../components/NavMenu';
+import { PlaygroundSidePanel } from '../components/PlaygroundSidePanel';
 import { SelectionHandles } from '../components/SelectionHandles';
-import { Sidebar } from '../components/Sidebar';
 import { type Mountable, css, html, injectStyles, mount, parseHtml } from '../util/Dom';
 import { Paths } from '../util/Paths';
 
@@ -14,34 +13,36 @@ injectStyles(
     css`
     .at-wrap {
         position: relative;
-        width: 90vw;
-        height: 90vh;
-        margin: 0 auto;
-        border: 1px solid rgba(0, 0, 0, 0.12);
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        border: 0;
         background: #fff;
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        box-shadow: none;
     }
     .at-wrap > .at-content {
         flex: 1 1 auto;
         overflow: hidden;
         position: relative;
+        background: #fff;
     }
     .at-wrap .at-viewport {
         overflow-y: auto;
         position: absolute;
         top: 0;
-        left: 70px;
+        left: 0;
         right: 0;
         bottom: 0;
         padding-right: 20px;
     }
+    .at-wrap .at-canvas {
+        min-height: 100%;
+    }
     @media screen and (max-width: 1100px) {
         .at-wrap .at-viewport { left: 0; }
-    }
-    @media screen and (max-width: 920px) {
-        .at-wrap { height: 60vh; }
     }
 `
 );
@@ -76,8 +77,9 @@ export function buildSettings(options: ControlAppOptions, viewport: HTMLElement)
     applyFonts(settings);
     settings.fillFromJson({
         core: {
+            includeNoteBounds: true,
             logLevel: (params.get('loglevel') ?? 'info') as alphaTab.json.CoreSettingsJson['logLevel'],
-            engine: params.get('engine') ?? 'default',
+            engine: params.get('engine') ?? 'svg',
             file: options.file ?? Paths.defaultScore,
             fontDirectory: options.fontDirectory ?? Paths.fontDirectory
         },
@@ -92,19 +94,19 @@ export function buildSettings(options: ControlAppOptions, viewport: HTMLElement)
     if (options.settings) {
         settings.fillFromJson(options.settings);
     }
+    settings.core.includeNoteBounds = true;
     return settings;
 }
 
 export class ControlApp implements Mountable {
     readonly root: HTMLElement;
     readonly api: alphaTab.AlphaTabApi;
-    readonly sidebar: Sidebar;
+    readonly sidePanel: PlaygroundSidePanel;
     readonly footer: Footer;
     private overlay: LoadingOverlay;
     private selectionHandles: SelectionHandles;
     private crosshair: Crosshair;
     private dragDrop: DragDrop;
-    private nav: NavMenu;
     private unsubError: () => void;
 
     constructor(options: ControlAppOptions = {}) {
@@ -112,11 +114,11 @@ export class ControlApp implements Mountable {
             <div class="at-wrap">
                 <div class="cmp-overlay"></div>
                 <div class="at-content">
-                    <div class="cmp-sidebar"></div>
                     <div class="at-viewport">
                         <div class="at-canvas"></div>
                     </div>
                 </div>
+                <div class="cmp-side-panel"></div>
                 <div class="cmp-footer"></div>
                 <div class="cmp-selection-handles"></div>
             </div>
@@ -132,12 +134,19 @@ export class ControlApp implements Mountable {
         });
 
         this.overlay = mount(this.root, '.cmp-overlay', new LoadingOverlay(this.api));
-        this.sidebar = mount(this.root, '.cmp-sidebar', new Sidebar(this.api));
+        this.sidePanel = mount(this.root, '.cmp-side-panel', new PlaygroundSidePanel(this.api));
         this.footer = mount(
             this.root,
             '.cmp-footer',
-            new Footer(this.api, { trackList: this.sidebar.trackList })
+            new Footer(this.api, {
+                showWaveform: false,
+                practiceOverlayHost: viewport,
+                onSidePanelModeChange: mode => this.sidePanel.setMode(mode)
+            })
         );
+        this.sidePanel.onModeChange = mode => {
+            this.footer.transport.setSidePanelMode(mode);
+        };
         this.selectionHandles = mount(
             this.root,
             '.cmp-selection-handles',
@@ -148,9 +157,6 @@ export class ControlApp implements Mountable {
             onEnter: () => this.overlay.enterDrag(),
             onLeave: () => this.overlay.leaveDrag()
         });
-        this.nav = new NavMenu();
-        document.body.appendChild(this.nav.root);
-
         // expose for fiddling in dev tools
         if (typeof window !== 'undefined') {
             window.api = this.api;
@@ -160,12 +166,11 @@ export class ControlApp implements Mountable {
 
     dispose(): void {
         this.unsubError();
-        this.nav.dispose();
         this.dragDrop.dispose();
         this.crosshair.dispose();
         this.selectionHandles.dispose();
         this.footer.dispose();
-        this.sidebar.dispose();
+        this.sidePanel.dispose();
         this.overlay.dispose();
         this.api.destroy();
         this.root.remove();

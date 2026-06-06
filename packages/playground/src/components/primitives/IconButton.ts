@@ -1,6 +1,6 @@
 import { type Mountable, css, html, injectStyles, parseHtml } from '../../util/Dom';
-import type { IconNode } from '../../util/Icons';
-import { icon as renderIcon } from '../../util/Icons';
+import type { IconDefinition, IconNode } from '../../util/Icons';
+import { fontAwesomeIcon, icon as renderIcon } from '../../util/Icons';
 import { Tooltip } from './Tooltip';
 
 injectStyles(
@@ -32,7 +32,7 @@ injectStyles(
 );
 
 export interface IconButtonProps {
-    icon: IconNode;
+    icon: IconNode | IconDefinition;
     tooltip?: string;
     label?: string;
     ariaLabel?: string;
@@ -67,8 +67,8 @@ export class IconButton implements Mountable {
         });
     }
 
-    setIcon(node: IconNode): void {
-        this.iconSlot.replaceChildren(renderIcon(node));
+    setIcon(node: IconNode | IconDefinition): void {
+        this.iconSlot.replaceChildren(isFontAwesomeIcon(node) ? fontAwesomeIcon(node) : renderIcon(node));
     }
 
     setLabel(label: string): void {
@@ -91,4 +91,8 @@ export class IconButton implements Mountable {
         this.tooltip?.dispose();
         this.root.remove();
     }
+}
+
+function isFontAwesomeIcon(node: IconNode | IconDefinition): node is IconDefinition {
+    return typeof (node as IconDefinition).iconName === 'string';
 }

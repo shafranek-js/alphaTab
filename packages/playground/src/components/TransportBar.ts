@@ -1,12 +1,12 @@
 import * as alphaTab from '@coderline/alphatab';
 import { type Mountable, css, html, injectStyles, mount, parseHtml } from '../util/Dom';
-import { Icons } from '../util/Icons';
-import { exportAudio, exportGp7 } from './AudioExporter';
-import { Dropdown, type DropdownItem } from './primitives/Dropdown';
+import { FontAwesomeIcons, Icons } from '../util/Icons';
+import { loadScoreFile } from './DragDrop';
+import type { PlaygroundSidePanelMode } from './PlaygroundSidePanel';
 import { IconButton } from './primitives/IconButton';
 import { LoadingProgress } from './primitives/LoadingProgress';
-import { ToggleButton } from './primitives/ToggleButton';
-import type { TrackList } from './TrackList';
+
+export type PlaygroundBottomPanelMode = 'media-sync' | 'practice' | null;
 
 injectStyles(
     'TransportBar',
@@ -17,134 +17,176 @@ injectStyles(
         align-items: center;
         background: var(--at-footer-bg);
         color: var(--at-footer-fg);
+        border-top: 0;
     }
     .at-transport-left,
     .at-transport-right {
         display: flex;
         align-items: center;
-        padding: 3px;
+        min-width: 0;
     }
     .at-transport-left > *,
     .at-transport-right > * {
         margin-right: 4px;
     }
-    .at-transport-separator {
-        align-self: stretch;
-        width: 1px;
-        margin: 6px 4px;
-        background: var(--at-divider);
+    .at-transport-left {
+        flex: 1 1 auto;
+    }
+    .at-transport-right {
+        flex: 0 0 auto;
+    }
+    .at-transport .at-icon-btn {
+        min-height: 40px;
+        height: auto;
+        padding: 0.8rem;
+        border-radius: 0;
+        gap: 0.35rem;
+        font-size: initial;
+        font-weight: 700;
+    }
+    .at-transport .at-icon-btn .at-icon-btn-icon {
+        line-height: 0;
+    }
+    .at-transport .at-icon-btn .at-icon-btn-icon > svg {
+        width: 1rem;
+        height: 1rem;
+    }
+    .at-transport.at-transport .at-icon-btn:hover:not([disabled]),
+    .at-transport.at-transport .at-icon-btn.active,
+    .at-transport.at-transport .at-icon-btn.at-active {
+        background: var(--at-accent-hover) !important;
+        color: #fff !important;
+    }
+    .at-transport-primary {
+        color: #fff;
     }
     .at-song-details {
-        font-size: 12px;
-        padding: 0 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        max-width: min(32vw, 420px);
+        line-height: 1;
+        font-weight: 700;
     }
-    .at-song-details > .at-song-title { font-weight: 500; }
+    .at-song-title,
+    .at-song-artist {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .at-song-title {
+        font-weight: 700;
+    }
+    .at-song-artist {
+        color: inherit;
+        font-size: inherit;
+    }
+    .at-song-separator {
+        margin: 0 0.25rem;
+    }
     .at-time-position {
-        font-weight: bold;
-        padding: 0 8px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
     }
-    .at-loading-slot { display: inline-flex; align-items: center; }
-    .at-loading-slot.hidden { display: none; }
+    .at-loading-slot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+    }
+    .at-loading-slot.hidden {
+        display: none;
+    }
+    .at-file-input {
+        display: none;
+    }
 
     @media screen and (max-width: 920px) {
-        .at-transport-right > *:not(.at-transport-essential) { display: none !important; }
+        .at-transport {
+            flex-wrap: wrap;
+        }
+        .at-transport-left,
+        .at-transport-right {
+            width: 100%;
+        }
+        .at-transport-right {
+            justify-content: flex-end;
+            border-top: 1px solid var(--at-divider);
+        }
+        .at-song-details {
+            max-width: none;
+            flex: 1 1 auto;
+        }
     }
-    @media screen and (max-width: 1100px) {
-        .at-transport * { font-size: 12px !important; }
+    @media screen and (max-width: 560px) {
+        .at-transport .at-icon-btn {
+            min-width: 40px;
+            padding: 0.8rem;
+        }
+        .at-transport-right .at-icon-btn .at-icon-btn-label {
+            display: none;
+        }
+        .at-time-position {
+            padding: 0 8px;
+            font-size: 12px;
+        }
     }
 `
 );
 
-const SPEED_ITEMS: DropdownItem<number>[] = [
-    { value: 0.25, label: '0.25x' },
-    { value: 0.5, label: '0.5x' },
-    { value: 0.75, label: '0.75x' },
-    { value: 0.9, label: '0.9x' },
-    { value: 1, label: '1x' },
-    { value: 1.1, label: '1.1x' },
-    { value: 1.25, label: '1.25x' },
-    { value: 1.5, label: '1.5x' },
-    { value: 2, label: '2x' }
-];
-
-const ZOOM_ITEMS: DropdownItem<number>[] = [
-    { value: 0.25, label: '25%' },
-    { value: 0.5, label: '50%' },
-    { value: 0.75, label: '75%' },
-    { value: 0.9, label: '90%' },
-    { value: 1, label: '100%' },
-    { value: 1.1, label: '110%' },
-    { value: 1.25, label: '125%' },
-    { value: 1.5, label: '150%' },
-    { value: 2, label: '200%' }
-];
-
-const LAYOUT_ITEMS: DropdownItem<alphaTab.LayoutMode>[] = [
-    { value: alphaTab.LayoutMode.Horizontal, label: 'Horizontal', icon: Icons.LayoutHorizontal },
-    { value: alphaTab.LayoutMode.Page, label: 'Vertical', icon: Icons.LayoutPage },
-    { value: alphaTab.LayoutMode.Parchment, label: 'Parchment', icon: Icons.LayoutParchment }
-];
-
-const SCROLL_ITEMS: DropdownItem<alphaTab.ScrollMode>[] = [
-    { value: alphaTab.ScrollMode.Off, label: 'No automatic Scrolling', icon: Icons.ScrollOff },
-    { value: alphaTab.ScrollMode.Continuous, label: 'On bar change (Continuous)', icon: Icons.ScrollContinuous },
-    { value: alphaTab.ScrollMode.OffScreen, label: 'On bar change (Out of Screen)', icon: Icons.ScrollOffScreen },
-    { value: alphaTab.ScrollMode.Smooth, label: 'Smooth', icon: Icons.ScrollSmooth }
-];
-
 export interface TransportBarOptions {
-    trackList?: TrackList;
+    sidePanelMode?: PlaygroundSidePanelMode;
+    bottomPanelMode?: PlaygroundBottomPanelMode;
+    onSidePanelModeChange?: (mode: PlaygroundSidePanelMode) => void;
+    onBottomPanelModeChange?: (mode: PlaygroundBottomPanelMode) => void;
 }
 
 export class TransportBar implements Mountable {
     readonly root: HTMLElement;
     private playPause: IconButton;
-    private stop: IconButton;
-    private metronome: ToggleButton;
-    private countIn: ToggleButton;
-    private loop: ToggleButton;
-    private outputDevice: Dropdown<string>;
+    private mediaSync: IconButton;
+    private practice: IconButton;
+    private tracks: IconButton;
+    private settings: IconButton;
     private loadingProgress: LoadingProgress;
     private loadingSlot: HTMLElement;
     private titleEl: HTMLElement;
     private artistEl: HTMLElement;
     private timePositionEl: HTMLElement;
+    private sidePanelMode: PlaygroundSidePanelMode;
+    private bottomPanelMode: PlaygroundBottomPanelMode;
     private subscriptions: (() => void)[] = [];
-    private outputDevices: alphaTab.synth.ISynthOutputDevice[] = [];
     private previousTime = -1;
 
     constructor(
         api: alphaTab.AlphaTabApi,
         private options: TransportBarOptions = {}
     ) {
+        this.sidePanelMode = options.sidePanelMode ?? null;
+        this.bottomPanelMode = options.bottomPanelMode ?? null;
         this.root = parseHtml(html`
             <div class="at-transport">
                 <div class="at-transport-left">
-                    <div class="cmp-stop"></div>
+                    <div class="cmp-open-file"></div>
+                    <input class="at-file-input" type="file" accept=".gp,.gp3,.gp4,.gp5,.gpx,.musicxml,.mxml,.xml,.capx" />
                     <div class="cmp-play-pause"></div>
-                    <div class="cmp-speed"></div>
                     <div class="at-loading-slot hidden">
                         <div class="cmp-loading"></div>
                     </div>
                     <div class="at-song-details">
-                        <span class="at-song-title"></span> -
+                        <span class="at-song-title"></span>
+                        <span class="at-song-separator">-</span>
                         <span class="at-song-artist"></span>
                     </div>
                     <div class="at-time-position">00:00 / 00:00</div>
                 </div>
                 <div class="at-transport-right">
-                    <div class="cmp-output-device at-transport-essential"></div>
-                    <div class="cmp-count-in"></div>
-                    <div class="cmp-metronome"></div>
-                    <div class="cmp-loop"></div>
-                    <div class="at-transport-separator"></div>
-                    <div class="cmp-print"></div>
-                    <div class="cmp-download-gp"></div>
-                    <div class="cmp-download-audio"></div>
-                    <div class="at-transport-separator"></div>
-                    <div class="cmp-zoom"></div>
-                    <div class="cmp-layout"></div>
-                    <div class="cmp-scroll"></div>
+                    <div class="cmp-media-sync"></div>
+                    <div class="cmp-practice"></div>
+                    <div class="cmp-tracks"></div>
+                    <div class="cmp-settings"></div>
                 </div>
             </div>
         `);
@@ -153,195 +195,89 @@ export class TransportBar implements Mountable {
         this.timePositionEl = this.root.querySelector('.at-time-position')!;
         this.loadingSlot = this.root.querySelector('.at-loading-slot')!;
 
-        // --- left group ---
-        this.stop = mount(
+        const fileInput = this.root.querySelector<HTMLInputElement>('.at-file-input')!;
+        fileInput.addEventListener('change', () => {
+            const file = fileInput.files?.[0];
+            if (file) {
+                loadScoreFile(api, file);
+                fileInput.value = '';
+            }
+        });
+
+        const openFile = mount(
             this.root,
-            '.cmp-stop',
-            new IconButton({ icon: Icons.Stop, tooltip: 'Stop' })
+            '.cmp-open-file',
+            new IconButton({ icon: FontAwesomeIcons.OpenFile, tooltip: 'Open file', ariaLabel: 'Open file' })
         );
-        this.stop.setEnabled(false);
-        this.stop.onClick = () => api.stop();
+        openFile.onClick = () => fileInput.click();
 
         this.playPause = mount(
             this.root,
             '.cmp-play-pause',
-            new IconButton({ icon: Icons.Play, tooltip: 'Play/Pause' })
+            new IconButton({ icon: FontAwesomeIcons.Play, tooltip: 'Play/Pause', ariaLabel: 'Play/Pause' })
         );
+        this.playPause.root.classList.add('at-transport-primary');
         this.playPause.setEnabled(false);
         this.playPause.onClick = () => api.playPause();
 
-        const speed = mount(
-            this.root,
-            '.cmp-speed',
-            new Dropdown<number>({
-                icon: Icons.Search,
-                label: '1x',
-                tooltip: 'Playback speed',
-                items: SPEED_ITEMS,
-                initialValue: 1
-            })
-        );
-        speed.onSelect = (value, item) => {
-            api.playbackSpeed = value;
-            speed.setLabel(item.label);
-        };
-
         this.loadingProgress = mount(this.loadingSlot, '.cmp-loading', new LoadingProgress());
 
-        // --- right group ---
-        this.outputDevice = mount(
+        this.mediaSync = mount(
             this.root,
-            '.cmp-output-device',
-            new Dropdown<string>({
-                icon: Icons.OutputDevice,
-                tooltip: 'Output device',
-                items: [{ value: '', label: 'Default' }],
-                onOpen: async () => {
-                    const devices = await api.enumerateOutputDevices();
-                    this.outputDevices = devices;
-                    return [
-                        { value: '', label: 'Default' },
-                        ...devices.map(d => ({ value: d.deviceId, label: d.label + (d.isDefault ? ' (default)' : '') }))
-                    ];
-                }
-            })
+            '.cmp-media-sync',
+            new IconButton({ icon: FontAwesomeIcons.MediaSync, label: 'Media Sync', tooltip: 'Media Sync' })
         );
-        this.outputDevice.onSelect = async value => {
-            if (!value) {
-                await api.setOutputDevice(null);
-                return;
-            }
-            const device = this.outputDevices.find(d => d.deviceId === value);
-            if (device) {
-                await api.setOutputDevice(device);
-            }
+        this.mediaSync.onClick = () => {
+            const next = this.bottomPanelMode === 'media-sync' ? null : 'media-sync';
+            this.setBottomPanelMode(next);
+            this.options.onBottomPanelModeChange?.(next);
         };
 
-        this.countIn = mount(
+        this.practice = mount(
             this.root,
-            '.cmp-count-in',
-            new ToggleButton({ icon: Icons.CountIn, tooltip: 'Count-In' })
+            '.cmp-practice',
+            new IconButton({ icon: Icons.TrackPiano, label: 'Practice', tooltip: 'Practice' })
         );
-        this.countIn.setEnabled(false);
-        this.countIn.onChange = on => {
-            api.countInVolume = on ? 1 : 0;
+        this.practice.onClick = () => {
+            const next = this.bottomPanelMode === 'practice' ? null : 'practice';
+            this.setBottomPanelMode(next);
+            this.options.onBottomPanelModeChange?.(next);
         };
 
-        this.metronome = mount(
+        this.tracks = mount(
             this.root,
-            '.cmp-metronome',
-            new ToggleButton({ icon: Icons.Metronome, tooltip: 'Metronome' })
+            '.cmp-tracks',
+            new IconButton({ icon: FontAwesomeIcons.Tracks, label: 'Tracks', tooltip: 'Tracks' })
         );
-        this.metronome.setEnabled(false);
-        this.metronome.onChange = on => {
-            api.metronomeVolume = on ? 1 : 0;
+        this.tracks.onClick = () => {
+            const next = this.sidePanelMode === 'tracks' ? null : 'tracks';
+            this.setSidePanelMode(next);
+            this.options.onSidePanelModeChange?.(next);
         };
 
-        this.loop = mount(
+        this.settings = mount(
             this.root,
-            '.cmp-loop',
-            new ToggleButton({ icon: Icons.Loop, tooltip: 'Loop' })
+            '.cmp-settings',
+            new IconButton({ icon: FontAwesomeIcons.Settings, label: 'Settings', tooltip: 'Settings' })
         );
-        this.loop.setEnabled(false);
-        this.loop.onChange = on => {
-            api.isLooping = on;
+        this.settings.onClick = () => {
+            const next = this.sidePanelMode === 'settings' ? null : 'settings';
+            this.setSidePanelMode(next);
+            this.options.onSidePanelModeChange?.(next);
         };
 
-        const print = mount(
-            this.root,
-            '.cmp-print',
-            new IconButton({ icon: Icons.Print, tooltip: 'Print' })
-        );
-        print.onClick = () => api.print();
+        this.refreshActiveButtons();
 
-        const downloadGp = mount(
-            this.root,
-            '.cmp-download-gp',
-            new IconButton({ icon: Icons.DownloadGp, tooltip: 'Download GP' })
-        );
-        downloadGp.onClick = () => exportGp7(api);
-
-        const downloadAudio = mount(
-            this.root,
-            '.cmp-download-audio',
-            new IconButton({ icon: Icons.DownloadAudio, tooltip: 'Download Audio Data' })
-        );
-        downloadAudio.onClick = async () => {
-            await exportAudio(api, this.options.trackList?.getItems() ?? []);
-        };
-
-        const zoom = mount(
-            this.root,
-            '.cmp-zoom',
-            new Dropdown<number>({
-                icon: Icons.Search,
-                label: '100%',
-                tooltip: 'Zoom',
-                items: ZOOM_ITEMS,
-                initialValue: 1
-            })
-        );
-        zoom.onSelect = (value, item) => {
-            api.settings.display.scale = value;
-            zoom.setLabel(item.label);
-            api.updateSettings();
-            api.render();
-        };
-
-        const layout = mount(
-            this.root,
-            '.cmp-layout',
-            new Dropdown<alphaTab.LayoutMode>({
-                label: 'Layout',
-                tooltip: 'Layout mode',
-                items: LAYOUT_ITEMS,
-                initialValue: api.settings.display.layoutMode
-            })
-        );
-        layout.onSelect = value => {
-            api.settings.display.layoutMode = value;
-            api.updateSettings();
-            api.render();
-        };
-
-        const scroll = mount(
-            this.root,
-            '.cmp-scroll',
-            new Dropdown<alphaTab.ScrollMode>({
-                label: 'Scroll',
-                tooltip: 'Scroll mode',
-                items: SCROLL_ITEMS,
-                initialValue: api.settings.player.scrollMode
-            })
-        );
-        scroll.onSelect = value => {
-            api.settings.player.scrollMode = value;
-            switch (value) {
-                case alphaTab.ScrollMode.Continuous:
-                case alphaTab.ScrollMode.OffScreen:
-                    api.settings.player.scrollOffsetX = -10;
-                    api.settings.player.scrollOffsetY = -10;
-                    break;
-                case alphaTab.ScrollMode.Smooth:
-                    api.settings.player.scrollOffsetX = -50;
-                    api.settings.player.scrollOffsetY = -100;
-                    break;
-            }
-            api.updateSettings();
-            api.render();
-        };
-
-        // --- subscriptions ---
         this.subscriptions.push(
             api.scoreLoaded.on(score => {
-                this.titleEl.textContent = score.title;
-                this.artistEl.textContent = score.artist;
+                this.titleEl.textContent = score.title || 'Untitled';
+                this.artistEl.textContent = score.artist || score.album || '';
             })
         );
         this.subscriptions.push(
             api.playerStateChanged.on(args => {
                 this.playPause.setIcon(
-                    args.state === alphaTab.synth.PlayerState.Playing ? Icons.Pause : Icons.Play
+                    args.state === alphaTab.synth.PlayerState.Playing ? FontAwesomeIcons.Pause : FontAwesomeIcons.Play
                 );
             })
         );
@@ -369,12 +305,32 @@ export class TransportBar implements Mountable {
         this.subscriptions.push(
             api.playerReady.on(() => {
                 this.playPause.setEnabled(true);
-                this.stop.setEnabled(true);
-                this.metronome.setEnabled(true);
-                this.countIn.setEnabled(true);
-                this.loop.setEnabled(true);
             })
         );
+    }
+
+    setSidePanelMode(mode: PlaygroundSidePanelMode): void {
+        this.sidePanelMode = mode;
+        this.refreshActiveButtons();
+    }
+
+    setBottomPanelMode(mode: PlaygroundBottomPanelMode): void {
+        this.bottomPanelMode = mode;
+        this.refreshActiveButtons();
+    }
+
+    private refreshActiveButtons(): void {
+        this.setActiveButton(this.tracks, this.sidePanelMode === 'tracks');
+        this.setActiveButton(this.settings, this.sidePanelMode === 'settings');
+        this.setActiveButton(this.mediaSync, this.bottomPanelMode === 'media-sync');
+        this.setActiveButton(this.practice, this.bottomPanelMode === 'practice');
+    }
+
+    private setActiveButton(button: IconButton, active: boolean): void {
+        button.root.classList.toggle('at-active', active);
+        button.root.classList.toggle('active', active);
+        button.root.style.backgroundColor = active ? 'var(--at-accent-hover)' : '';
+        button.root.style.color = active ? '#fff' : '';
     }
 
     dispose(): void {

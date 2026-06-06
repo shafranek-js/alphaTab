@@ -1,180 +1,306 @@
 import type * as alphaTab from '@coderline/alphatab';
-import { type Mountable, css, html, injectStyles, mount, parseHtml } from '../util/Dom';
-import { type IconNode, Icons, icon as renderIcon } from '../util/Icons';
-import { Slider } from './primitives/Slider';
-import { ToggleButton } from './primitives/ToggleButton';
-
-function pickTrackIcon(track: alphaTab.model.Track): IconNode {
-    if (track.playbackInfo.primaryChannel === 9 || track.staves[0]?.isPercussion) {
-        return Icons.TrackDrum;
-    }
-    const program = track.playbackInfo.program;
-    if (program >= 0 && program <= 7) {
-        // Acoustic Grand .. Clavi
-        return Icons.TrackPiano;
-    }
-    if ((program >= 52 && program <= 54) || program === 85) {
-        // Choir Aahs / Voice Oohs / Synth Voice / Lead 6 (voice)
-        return Icons.TrackVoice;
-    }
-    if (program >= 112 && program <= 119) {
-        // Percussive program range (Tinkle Bell .. Reverse Cymbal)
-        return Icons.TrackDrum;
-    }
-    return Icons.Track;
-}
+import { type Mountable, css, html, injectStyles, parseHtml } from '../util/Dom';
+import { FontAwesomeIcons, fontAwesomeIcon } from '../util/Icons';
 
 injectStyles(
     'TrackItem',
     css`
-    .at-track {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        grid-template-rows: auto auto;
-        grid-template-areas: 'icon title' 'icon controls';
-        padding: 5px;
-        transition: background 0.2s;
-        grid-gap: 5px;
+    .track-item {
+        padding: 0.5rem;
+    }
+    .track-item > .settings-item:not(.track-item-info) {
+        padding-left: 0.5rem;
+    }
+    .track-item-info > .settings-item-label {
+        font-weight: 700;
+    }
+    .settings-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.2rem;
+    }
+    .settings-item-label {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        cursor: pointer;
+        font-size: 90%;
+    }
+    .settings-item-label label,
+    .settings-item-label input {
         cursor: pointer;
     }
-    .at-track:hover { background: rgba(0, 0, 0, 0.1); }
-    .at-track.active { background: var(--at-track-active-bg); }
-    .at-track > .at-track-icon {
-        grid-area: icon;
-        font-size: 32px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        opacity: 0.5;
-        transition: opacity 0.2s;
-        width: 64px;
-        height: 64px;
-        color: inherit;
-    }
-    .at-track > .at-track-icon > svg { width: 32px; height: 32px; }
-    .at-track:hover > .at-track-icon { opacity: 0.8; }
-    .at-track.active > .at-track-icon { color: var(--at-accent); opacity: 1; }
-    .at-track > .at-track-name {
-        grid-area: title;
-        font-weight: 500;
-    }
-    .at-track > .at-track-controls {
-        grid-area: controls;
+    .settings-item-control {
         display: flex;
         align-items: center;
+        gap: 2px;
     }
-    .at-track > .at-track-controls > * { margin: 0 2px; }
-    .at-track > .at-track-controls > .at-track-mute,
-    .at-track > .at-track-controls > .at-track-solo {
+    .settings-item-control input[type='range'] {
+        width: 8rem;
+    }
+    .settings-item-control.button-group {
+        gap: 0;
+    }
+    .settings-item-control.button-group > *:not(:first-child):not(:last-child) {
+        border-radius: 0;
+    }
+    .settings-item-control.button-group > *:not(:last-child) {
+        border-right: 1px solid rgba(255, 255, 255, 0.5);
+    }
+    .settings-item-control.button-group > *:first-child {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+    .settings-item-control.button-group > *:last-child {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+    .track-item .button,
+    .track-button {
+        min-width: 1.8rem;
+        min-height: 1.7rem;
+        padding: 0.2rem 0.4rem;
+        border: 1px solid #dadde1;
+        border-radius: 4px;
+        background: #fff;
+        color: #1c1e21;
+        cursor: pointer;
+        font: inherit;
+        font-size: 12px;
         display: inline-flex;
         align-items: center;
-        height: 26px;
-        padding: 2px 8px;
-        font-size: 11px;
-        border: 1px solid;
-        background: transparent;
-        cursor: pointer;
-        border-radius: 4px;
+        justify-content: center;
     }
-    .at-track-mute { color: #dc3545; border-color: #dc3545; }
-    .at-track-mute.at-toggle-active { background: #dc3545; color: #fff; }
-    .at-track-solo { color: #198754; border-color: #198754; }
-    .at-track-solo.at-toggle-active { background: #198754; color: #fff; }
-    .at-track > .at-track-controls > .at-track-volume-icon { display: inline-flex; }
-    .at-track > .at-track-controls > .at-track-volume-icon > svg { width: 14px; height: 14px; }
+    .track-item .button--sm {
+        min-width: 1.5rem;
+        min-height: 1.5rem;
+        font-size: 0.875rem;
+    }
+    .track-item .icon-button {
+        width: 1.5rem;
+        height: 1.5rem;
+        padding: 0;
+    }
+    .track-item .button--primary {
+        background: var(--at-accent);
+        border-color: var(--at-accent);
+        color: #fff;
+    }
+    .track-item .button--secondary {
+        background: #ebedf0;
+        border-color: #dadde1;
+        color: #1c1e21;
+    }
+    .track-item .button--outline {
+        background: #fff;
+    }
+    .track-item .button[disabled] {
+        opacity: 0.45;
+        cursor: default;
+    }
+    .track-button > svg {
+        width: 0.9rem;
+        height: 0.9rem;
+    }
+    .track-button.success.active {
+        background: #198754;
+        border-color: #198754;
+        color: #fff;
+    }
+    .track-button.danger.active {
+        background: #dc3545;
+        border-color: #dc3545;
+        color: #fff;
+    }
 `
 );
+
+type StaffOption = 'showStandardNotation' | 'showTablature' | 'showSlash' | 'showNumbered';
 
 export class TrackItem implements Mountable {
     readonly root: HTMLElement;
     readonly track: alphaTab.model.Track;
 
-    private muteBtn: ToggleButton;
-    private soloBtn: ToggleButton;
-    private volume: Slider;
+    private selected: HTMLInputElement;
+    private muteBtn: HTMLButtonElement;
+    private soloBtn: HTMLButtonElement;
+    private volume: HTMLInputElement;
+    private transposeFull: HTMLInputElement;
+    private transposeAudio: HTMLInputElement;
 
-    onSelect: ((e: MouseEvent) => void) | null = null;
-
-    constructor(api: alphaTab.AlphaTabApi, track: alphaTab.model.Track) {
+    constructor(
+        private api: alphaTab.AlphaTabApi,
+        track: alphaTab.model.Track
+    ) {
         this.track = track;
         this.root = parseHtml(html`
-            <div class="at-track">
-                <div class="at-track-icon"></div>
-                <span class="at-track-name">${track.name}</span>
-                <div class="at-track-controls">
-                    <div class="cmp-mute"></div>
-                    <div class="cmp-solo"></div>
-                    <span class="at-track-volume-icon"></span>
-                    <div class="cmp-volume"></div>
+            <div class="track-item">
+                <div class="settings-item track-item-info">
+                    <div class="settings-item-label">
+                        <input type="checkbox" id="t-${track.index}" />
+                        <label for="t-${track.index}">${track.name}</label>
+                    </div>
+                    <div class="settings-item-control">
+                        <button type="button" class="track-button success" title="Solo" aria-label="Solo"></button>
+                        <button type="button" class="track-button danger" title="Mute" aria-label="Mute"></button>
+                    </div>
                 </div>
+                <div class="settings-item">
+                    <div class="settings-item-label">Volume</div>
+                    <div class="settings-item-control">
+                        <input class="track-volume" type="range" min="0" max="16" value="${track.playbackInfo.volume}" />
+                    </div>
+                </div>
+                <div class="settings-item">
+                    <div class="settings-item-label" title="Fully transposes the track (audio and notation)">Transpose Full</div>
+                    <div class="settings-item-control">
+                        <input class="track-transpose-full" type="range" min="-12" max="12" step="1" value="0" />
+                    </div>
+                </div>
+                <div class="settings-item">
+                    <div class="settings-item-label" title="Transposes the audio playback of the track">Transpose Audio</div>
+                    <div class="settings-item-control">
+                        <input class="track-transpose-audio" type="range" min="-12" max="12" step="1" value="0" />
+                    </div>
+                </div>
+                <div class="track-staves"></div>
             </div>
         `);
-        this.root.querySelector('.at-track-icon')!.appendChild(renderIcon(pickTrackIcon(track)));
-        this.root.querySelector('.at-track-volume-icon')!.appendChild(renderIcon(Icons.Volume));
 
-        this.muteBtn = mount(
-            this.root,
-            '.cmp-mute',
-            new ToggleButton({ icon: Icons.Track, label: 'Mute', tooltip: 'Mute track' })
-        );
-        // Replace the IconButton svg with simple text button by clearing the icon slot
-        const muteIconSlot = this.muteBtn.root.querySelector('.at-icon-btn-icon');
-        if (muteIconSlot) {
-            muteIconSlot.remove();
-        }
-        this.muteBtn.root.classList.remove('at-icon-btn');
-        this.muteBtn.root.classList.add('at-track-mute');
-        this.muteBtn.onChange = active => {
-            api.changeTrackMute([this.track], active);
-        };
+        this.selected = this.root.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+        this.soloBtn = this.root.querySelector<HTMLButtonElement>('.track-button.success')!;
+        this.muteBtn = this.root.querySelector<HTMLButtonElement>('.track-button.danger')!;
+        this.volume = this.root.querySelector<HTMLInputElement>('.track-volume')!;
+        this.transposeFull = this.root.querySelector<HTMLInputElement>('.track-transpose-full')!;
+        this.transposeAudio = this.root.querySelector<HTMLInputElement>('.track-transpose-audio')!;
 
-        this.soloBtn = mount(
-            this.root,
-            '.cmp-solo',
-            new ToggleButton({ icon: Icons.Track, label: 'Solo', tooltip: 'Solo track' })
-        );
-        const soloIconSlot = this.soloBtn.root.querySelector('.at-icon-btn-icon');
-        if (soloIconSlot) {
-            soloIconSlot.remove();
-        }
-        this.soloBtn.root.classList.remove('at-icon-btn');
-        this.soloBtn.root.classList.add('at-track-solo');
-        this.soloBtn.onChange = active => {
-            api.changeTrackSolo([this.track], active);
-        };
+        this.soloBtn.appendChild(fontAwesomeIcon(FontAwesomeIcons.Solo));
+        this.muteBtn.appendChild(fontAwesomeIcon(FontAwesomeIcons.Mute));
+        this.soloBtn.classList.toggle('active', track.playbackInfo.isSolo);
+        this.muteBtn.classList.toggle('active', track.playbackInfo.isMute);
 
-        this.volume = mount(
-            this.root,
-            '.cmp-volume',
-            new Slider({ min: 0, max: 16, step: 1, initialValue: track.playbackInfo.volume })
-        );
-        this.volume.onInput = value => {
-            api.changeTrackVolume([this.track], value / Math.max(1, this.track.playbackInfo.volume));
-        };
+        this.selected.addEventListener('change', () => this.onTrackSelect(this.selected.checked));
+        this.soloBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            const active = !this.soloBtn.classList.contains('active');
+            this.soloBtn.classList.toggle('active', active);
+            this.track.playbackInfo.isSolo = active;
+            this.api.changeTrackSolo([this.track], active);
+        });
+        this.muteBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            const active = !this.muteBtn.classList.contains('active');
+            this.muteBtn.classList.toggle('active', active);
+            this.track.playbackInfo.isMute = active;
+            this.api.changeTrackMute([this.track], active);
+        });
+        this.volume.addEventListener('input', e => {
+            e.stopPropagation();
+            this.api.changeTrackVolume([this.track], this.volume.valueAsNumber / Math.max(1, this.track.playbackInfo.volume));
+        });
+        this.transposeAudio.addEventListener('input', e => {
+            e.stopPropagation();
+            this.api.changeTrackTranspositionPitch([this.track], this.transposeAudio.valueAsNumber);
+        });
+        this.transposeFull.addEventListener('input', e => {
+            e.stopPropagation();
+            const pitches = this.api.settings.notation.transpositionPitches;
+            while (pitches.length < this.track.index + 1) {
+                pitches.push(0);
+            }
+            pitches[this.track.index] = this.transposeFull.valueAsNumber;
+            this.api.updateSettings();
+            this.api.render();
+        });
 
-        this.root.addEventListener('click', e => this.onSelect?.(e));
+        this.buildStaves();
     }
 
     setActive(active: boolean): void {
-        this.root.classList.toggle('active', active);
+        this.selected.checked = active;
     }
 
     isMuted(): boolean {
-        return this.muteBtn.isActive();
+        return this.muteBtn.classList.contains('active');
     }
 
     isSoloed(): boolean {
-        return this.soloBtn.isActive();
+        return this.soloBtn.classList.contains('active');
     }
 
     getVolume(): number {
-        return this.volume.getValue();
+        return this.volume.valueAsNumber;
     }
 
     dispose(): void {
-        this.muteBtn.dispose();
-        this.soloBtn.dispose();
-        this.volume.dispose();
         this.root.remove();
+    }
+
+    private onTrackSelect(selected: boolean): void {
+        let tracks: alphaTab.model.Track[];
+        if (selected) {
+            tracks = this.api.tracks.includes(this.track) ? [...this.api.tracks] : [...this.api.tracks, this.track];
+        } else {
+            tracks = this.api.tracks.filter(t => t !== this.track);
+            if (tracks.length === 0) {
+                this.selected.checked = true;
+                return;
+            }
+        }
+        tracks.sort((a, b) => a.index - b.index);
+        this.api.renderTracks(tracks);
+    }
+
+    private buildStaves(): void {
+        const staves = this.root.querySelector('.track-staves')!;
+        for (const staff of this.track.staves) {
+            staves.appendChild(this.buildStaff(staff));
+        }
+    }
+
+    private buildStaff(staff: alphaTab.model.Staff): HTMLElement {
+        const root = parseHtml(html`
+                <div class="settings-item">
+                <div class="settings-item-label">Staff ${staff.index + 1}</div>
+                <div class="settings-item-control button-group">
+                    <button type="button" class="button icon-button button--sm staff-button" data-option="showStandardNotation" title="Standard Notation">&#119135;</button>
+                    <button type="button" class="button icon-button button--sm staff-button" data-option="showTablature" title="Guitar Tabs">5&#10548;</button>
+                    <button type="button" class="button icon-button button--sm staff-button" data-option="showSlash" title="Slash Notation">&#119053;</button>
+                    <button type="button" class="button icon-button button--sm staff-button" data-option="showNumbered" title="Numbered Notation">&#818;2&#818;</button>
+                </div>
+            </div>
+        `);
+        for (const button of root.querySelectorAll<HTMLButtonElement>('.staff-button')) {
+            const option = button.dataset.option as StaffOption;
+            this.setStaffButtonState(button, Boolean(staff[option]));
+            if (staff.isPercussion && (option === 'showStandardNotation' || option === 'showTablature')) {
+                button.disabled = true;
+            }
+            button.addEventListener('click', e => {
+                e.stopPropagation();
+                if (button.disabled) {
+                    return;
+                }
+                const activeOptions = ['showStandardNotation', 'showTablature', 'showSlash', 'showNumbered']
+                    .filter(o => o !== option)
+                    .some(o => Boolean(staff[o as StaffOption]));
+                if (staff[option] && !activeOptions) {
+                    return;
+                }
+                staff[option] = !staff[option];
+                this.setStaffButtonState(button, Boolean(staff[option]));
+                this.api.render();
+            });
+        }
+        return root;
+    }
+
+    private setStaffButtonState(button: HTMLButtonElement, active: boolean): void {
+        button.classList.toggle('active', active);
+        button.classList.toggle('button--primary', active);
+        button.classList.toggle('button--secondary', !active);
+        button.classList.toggle('button--outline', !active);
     }
 }

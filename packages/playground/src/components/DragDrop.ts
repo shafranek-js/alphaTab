@@ -5,6 +5,16 @@ export interface DragDropOptions {
     onLeave?: () => void;
 }
 
+export function loadScoreFile(api: alphaTab.AlphaTabApi, file: File): void {
+    const reader = new FileReader();
+    reader.onload = data => {
+        if (data.target?.result) {
+            api.load(data.target.result, [0]);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
 /**
  * Behaviour-only component: attaches document-level drag/drop handlers that
  * load a dropped file into the alphaTab API. Does not render any DOM of its own.
@@ -35,13 +45,7 @@ export class DragDrop {
         this.options.onLeave?.();
         const files = e.dataTransfer?.files;
         if (files && files.length === 1) {
-            const reader = new FileReader();
-            reader.onload = data => {
-                if (data.target?.result) {
-                    this.api.load(data.target.result, [0]);
-                }
-            };
-            reader.readAsArrayBuffer(files[0]);
+            loadScoreFile(this.api, files[0]);
         }
     };
 

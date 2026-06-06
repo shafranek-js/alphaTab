@@ -6,3 +6,5 @@ temp/
 *.user
 *.tgz
 /playground/
+*.log
+.codegraph/
