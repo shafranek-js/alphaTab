@@ -71,6 +71,7 @@ injectStyles(
         border-radius: 50%;
         background: #fff;
         cursor: pointer;
+        transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out;
     }
     .at-transport-center .at-control-item input[type="range"]::-moz-range-thumb {
         width: 12px;
@@ -79,6 +80,17 @@ injectStyles(
         border-radius: 50%;
         background: #fff;
         cursor: pointer;
+        transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out;
+    }
+    .at-metronome-volume.flash::-webkit-slider-thumb {
+        background-color: #22c55e !important;
+        box-shadow: 0 0 10px #22c55e;
+        transition: none;
+    }
+    .at-metronome-volume.flash::-moz-range-thumb {
+        background-color: #22c55e !important;
+        box-shadow: 0 0 10px #22c55e;
+        transition: none;
     }
     .at-transport-left > *,
     .at-transport-right > * {
@@ -156,41 +168,6 @@ injectStyles(
     }
     .at-file-input {
         display: none;
-    }
-
-    .at-metronome-icon-wrapper {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .at-metronome-icon-wrapper .at-icon {
-        transition: transform 0.1s ease-out, color 0.1s ease-out;
-    }
-    .at-metronome-icon-wrapper.flash .at-icon {
-        transform: scale(1.25);
-        color: #22c55e;
-        transition: none;
-    }
-    .at-metronome-indicator {
-        position: absolute;
-        top: -2px;
-        right: -2px;
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background-color: #22c55e;
-        box-shadow: 0 0 6px #22c55e;
-        opacity: 0;
-        transform: scale(0.5);
-        transition: opacity 0.1s ease-out, transform 0.1s ease-out;
-        pointer-events: none;
-    }
-    .at-metronome-indicator.flash {
-        opacity: 1;
-        transform: scale(1.1);
-        box-shadow: 0 0 10px #22c55e;
-        transition: none;
     }
 
     @media screen and (max-width: 920px) {
@@ -277,10 +254,7 @@ export class TransportBar implements Mountable {
 
                 <div class="at-transport-center">
                     <div class="at-control-item" title="Metronome Volume">
-                        <div class="at-metronome-icon-wrapper">
-                            <span class="at-icon at-metronome-icon"></span>
-                            <span class="at-metronome-indicator"></span>
-                        </div>
+                        <span class="at-icon at-metronome-icon"></span>
                         <input class="at-metronome-volume" type="range" min="0" max="1" step="0.1" value="0" />
                         <span class="at-metronome-volume-value">0%</span>
                     </div>
@@ -544,16 +518,13 @@ export class TransportBar implements Mountable {
         if (!isAudible) {
             return;
         }
-        const wrapper = this.root.querySelector('.at-metronome-icon-wrapper');
-        const indicator = this.root.querySelector('.at-metronome-indicator');
-        if (wrapper && indicator) {
-            wrapper.classList.add('flash');
-            indicator.classList.add('flash');
+        const input = this.root.querySelector('.at-metronome-volume');
+        if (input) {
+            input.classList.add('flash');
 
             window.clearTimeout(this.flashTimeoutId);
             this.flashTimeoutId = window.setTimeout(() => {
-                wrapper.classList.remove('flash');
-                indicator.classList.remove('flash');
+                input.classList.remove('flash');
             }, 100);
         }
     }
