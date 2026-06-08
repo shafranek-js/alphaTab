@@ -42,6 +42,9 @@ export class TrackList implements Mountable {
                 const track = score.tracks.find(t => t.index === savedTrack.index);
                 if (track) {
                     track.playbackInfo.volume = savedTrack.volume;
+                    if (savedTrack.balance !== undefined) {
+                        track.playbackInfo.balance = savedTrack.balance;
+                    }
                     track.playbackInfo.isMute = savedTrack.isMute;
                     track.playbackInfo.isSolo = savedTrack.isSolo;
                     track.playbackInfo.program = savedTrack.program;

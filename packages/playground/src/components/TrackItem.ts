@@ -143,6 +143,7 @@ export class TrackItem implements Mountable {
     private transposeFull: HTMLInputElement;
     private transposeAudio: HTMLInputElement;
     private instrument: HTMLSelectElement;
+    private balance: HTMLInputElement;
 
     constructor(
         private api: alphaTab.AlphaTabApi,
@@ -175,6 +176,12 @@ export class TrackItem implements Mountable {
                     </div>
                 </div>
                 <div class="settings-item">
+                    <div class="settings-item-label">Pan</div>
+                    <div class="settings-item-control">
+                        <input class="track-balance" type="range" min="0" max="16" value="${track.playbackInfo.balance}" />
+                    </div>
+                </div>
+                <div class="settings-item">
                     <div class="settings-item-label" title="Fully transposes the track (audio and notation)">Transpose Full</div>
                     <div class="settings-item-control">
                         <input class="track-transpose-full" type="range" min="-12" max="12" step="1" value="0" />
@@ -194,6 +201,7 @@ export class TrackItem implements Mountable {
         this.soloBtn = this.root.querySelector<HTMLButtonElement>('.track-button.success')!;
         this.muteBtn = this.root.querySelector<HTMLButtonElement>('.track-button.danger')!;
         this.volume = this.root.querySelector<HTMLInputElement>('.track-volume')!;
+        this.balance = this.root.querySelector<HTMLInputElement>('.track-balance')!;
         this.transposeFull = this.root.querySelector<HTMLInputElement>('.track-transpose-full')!;
         this.transposeAudio = this.root.querySelector<HTMLInputElement>('.track-transpose-audio')!;
         this.instrument = this.root.querySelector<HTMLSelectElement>('.track-instrument')!;
@@ -313,6 +321,53 @@ export class TrackItem implements Mountable {
             const oldVolume = this.track.playbackInfo.volume;
             this.track.playbackInfo.volume = this.volume.valueAsNumber;
             this.api.changeTrackVolume([this.track], this.volume.valueAsNumber / Math.max(1, oldVolume));
+            saveTrackSettings(this.api);
+        });
+        this.balance.addEventListener('input', e => {
+            e.stopPropagation();
+            const balanceVal = this.balance.valueAsNumber;
+            this.track.playbackInfo.balance = balanceVal;
+
+            if (this.api.score) {
+                const primaryChan = this.track.playbackInfo.primaryChannel;
+                const secondaryChan = this.track.playbackInfo.secondaryChannel;
+                for (const t of this.api.score.tracks) {
+                    if (t.playbackInfo.primaryChannel === primaryChan || t.playbackInfo.secondaryChannel === secondaryChan) {
+                        t.playbackInfo.balance = balanceVal;
+                        for (const staff of t.staves) {
+                            for (const bar of staff.bars) {
+                                for (const voice of bar.voices) {
+                                    for (const beat of voice.beats) {
+                                        for (const automation of beat.automations) {
+                                            if (automation.type === 3) { // AutomationType.Balance
+                                                automation.value = balanceVal;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Synchronize all balance elements in the UI sharing the same channels
+                const balanceElements = document.querySelectorAll<HTMLInputElement>('.track-balance');
+                for (const balInput of balanceElements) {
+                    const trackItem = balInput.closest('.track-item');
+                    if (trackItem) {
+                        const checkbox = trackItem.querySelector<HTMLInputElement>('input[type="checkbox"]');
+                        if (checkbox) {
+                            const trackIndex = Number(checkbox.id.replace('t-', ''));
+                            const t = this.api.score.tracks[trackIndex];
+                            if (t) {
+                                balInput.value = String(t.playbackInfo.balance);
+                            }
+                        }
+                    }
+                }
+            }
+
+            this.api.loadMidiForScore();
             saveTrackSettings(this.api);
         });
         this.transposeAudio.addEventListener('input', e => {
