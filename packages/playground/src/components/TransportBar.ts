@@ -715,6 +715,7 @@ export class TransportBar implements Mountable {
         api.settings.notation.transpositionPitches = transpositionPitches;
         api.updateSettings();
         api.render();
+        api.changeTrackTranspositionPitch(api.tracks, interval);
     }
 
     dispose(): void {
