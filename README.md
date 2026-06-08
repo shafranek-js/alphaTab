@@ -56,6 +56,10 @@ The playground app (`packages/playground`) showcases the full power of alphaTab'
 * **Bar Cursor Customization**: A native color picker to change the active playback bar highlighter.
 * **Layout Filters**: Interactive toggles for score title, layout elements, page outlines, and spacing templates.
 
+### 🎓 Educational & Practice Tools
+* **Interactive Playback & Speed Training**: Follow notation in real-time with a moving bar cursor highlighting active bars and beats. Adjust playback speed from `0.1x` to `3.0x` to practice at comfortable tempos.
+* **Suzuki Note Coloring Spectrum**: Toggle note-head and fret-number colors according to the Suzuki color spectrum (C = Red, D = Orange, E = Yellow, F = Green, G = Light Blue, A = Dark Blue, B = Magenta/Pink). This visual aid helps beginners quickly associate pitches with positions on standard notation, guitar tablature, and numbered staves, making sheet music reading much more intuitive.
+
 ---
 
 ## 🎹 Synthesizer & SoundFont Technology
