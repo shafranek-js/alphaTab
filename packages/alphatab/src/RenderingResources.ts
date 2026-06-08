@@ -340,6 +340,20 @@ export class RenderingResources {
      */
     public scoreInfoColor: Color = new Color(0, 0, 0, 0xff);
 
+    /**
+     * The font to use for rendering the watermark text at the bottom.
+     * @defaultValue `bold 13px Arial, sans-serif`
+     * @since 1.9.0
+     */
+    public watermarkFont: Font = new Font(RenderingResources._sansFont, 13, FontStyle.Plain, FontWeight.Bold);
+
+    /**
+     * The color to use for rendering the watermark text.
+     * @defaultValue `rgb(0, 0, 0)`
+     * @since 1.9.0
+     */
+    public watermarkColor: Color = new Color(0, 0, 0, 0xff);
+
     public constructor() {
         for (const [k, v] of RenderingResources.defaultFonts) {
             this.elementFonts.set(k, v.withSize(v.size));

@@ -210,9 +210,21 @@ export class PlaygroundSidePanel implements Mountable {
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
 
     constructor(private api: alphaTab.AlphaTabApi) {
-        this.barCursorColor = localStorage.getItem('at-playground-bar-cursor-color') ?? '#ffff00';
-        this.barCursorOpacity = Number(localStorage.getItem('at-playground-bar-cursor-opacity') ?? '0.25');
-        this.barCursorPosition = (localStorage.getItem('at-playground-bar-cursor-position') as 'above' | 'below') ?? 'above';
+        this.loadSavedSettings();
+
+        if (!localStorage.getItem('at-playground-settings')) {
+            this.barCursorColor = localStorage.getItem('at-playground-bar-cursor-color') ?? '#ffff00';
+            this.barCursorOpacity = Number(localStorage.getItem('at-playground-bar-cursor-opacity') ?? '0.25');
+            this.barCursorPosition = (localStorage.getItem('at-playground-bar-cursor-position') as 'above' | 'below') ?? 'above';
+        }
+
+        const savedTheme = this.getSavedCustomSetting('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark-theme');
+        } else if (savedTheme === 'light') {
+            document.documentElement.classList.remove('dark-theme');
+        }
+
         this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
         this.root = parseHtml(html`
             <aside class="at-side-panel" aria-hidden="true">
@@ -239,17 +251,20 @@ export class PlaygroundSidePanel implements Mountable {
         this.closeButton.onClick = () => this.setMode(null);
         this.trackList = mount(this.root, '.cmp-track-list', new TrackList(api));
         this.buildSettings();
+        this.saveAllSettings();
         this.subscriptions.push(
             api.scoreLoaded.on(score => {
+                this.applySavedStylesheetSettings(score);
                 applySuzukiNoteColors(score, this.noteColorScheme === 'suzuki');
                 this.buildSettings();
+                this.saveAllSettings();
             })
         );
 
         // Wrap rendering methods to ensure note colors are always applied synchronously
         // before serialization and rendering (especially important for worker-based renderers).
         this.originalRender = api.render;
-        api.render = (renderHints?: alphaTab.RenderHints) => {
+        api.render = (renderHints?: alphaTab.rendering.RenderHints) => {
             if (api.score) {
                 applySuzukiNoteColors(api.score, this.noteColorScheme === 'suzuki');
             }
@@ -257,13 +272,13 @@ export class PlaygroundSidePanel implements Mountable {
         };
 
         this.originalRenderScore = api.renderScore;
-        api.renderScore = (score: alphaTab.model.Score, trackIndexes?: number[], renderHints?: alphaTab.RenderHints) => {
+        api.renderScore = (score: alphaTab.model.Score, trackIndexes?: number[], renderHints?: alphaTab.rendering.RenderHints) => {
             applySuzukiNoteColors(score, this.noteColorScheme === 'suzuki');
             this.originalRenderScore.call(api, score, trackIndexes, renderHints);
         };
 
         this.originalRenderTracks = api.renderTracks;
-        api.renderTracks = (tracks: alphaTab.model.Track[], renderHints?: alphaTab.RenderHints) => {
+        api.renderTracks = (tracks: alphaTab.model.Track[], renderHints?: alphaTab.rendering.RenderHints) => {
             if (api.score) {
                 applySuzukiNoteColors(api.score, this.noteColorScheme === 'suzuki');
             }
@@ -296,10 +311,12 @@ export class PlaygroundSidePanel implements Mountable {
                 this.engineRow(),
                 this.rangeRow('Scale', 0.25, 2, 0.25, this.api.settings.display.scale, value => {
                     this.api.settings.display.scale = value;
+                    this.saveUserSetting('settings', 'display.scale', value);
                     this.render();
                 }, value => `${Math.round(value * 100)}%`),
                 this.rangeRow('Stretch', 0.25, 2, 0.25, this.api.settings.display.stretchForce, value => {
                     this.api.settings.display.stretchForce = value;
+                    this.saveUserSetting('settings', 'display.stretchForce', value);
                     this.render();
                 }, value => value.toFixed(2)),
                 this.selectRow(
@@ -312,23 +329,29 @@ export class PlaygroundSidePanel implements Mountable {
                     String(this.api.settings.display.layoutMode),
                     value => {
                         this.api.settings.display.layoutMode = Number(value) as alphaTab.LayoutMode;
+                        this.saveUserSetting('settings', 'display.layoutMode', Number(value));
                         this.render();
                     }
                 ),
                 this.numberRow('Bars per System', this.api.settings.display.barsPerRow, value => {
                     this.api.settings.display.barsPerRow = value;
+                    this.saveUserSetting('settings', 'display.barsPerRow', value);
                     this.render();
                 }),
                 this.numberRow('Start Bar', this.api.settings.display.startBar, value => {
-                    this.api.settings.display.startBar = Math.max(1, value);
+                    const val = Math.max(1, value);
+                    this.api.settings.display.startBar = val;
+                    this.saveUserSetting('settings', 'display.startBar', val);
                     this.render();
                 }),
                 this.numberRow('Bar Count', this.api.settings.display.barCount, value => {
                     this.api.settings.display.barCount = value;
+                    this.saveUserSetting('settings', 'display.barCount', value);
                     this.render();
                 }),
                 this.toggleRow('Justify Last System', this.api.settings.display.justifyLastSystem, value => {
                     this.api.settings.display.justifyLastSystem = value;
+                    this.saveUserSetting('settings', 'display.justifyLastSystem', value);
                     this.render();
                 }),
                 this.selectRow(
@@ -340,6 +363,7 @@ export class PlaygroundSidePanel implements Mountable {
                     String(this.api.settings.display.systemsLayoutMode),
                     value => {
                         this.api.settings.display.systemsLayoutMode = Number(value) as SystemsLayoutMode;
+                        this.saveUserSetting('settings', 'display.systemsLayoutMode', Number(value));
                         this.render();
                     }
                 )
@@ -349,7 +373,7 @@ export class PlaygroundSidePanel implements Mountable {
                 this.barCursorColorRow(),
                 this.rangeRow('Bar Cursor Opacity', 0, 1, 0.05, this.barCursorOpacity, value => {
                     this.barCursorOpacity = value;
-                    localStorage.setItem('at-playground-bar-cursor-opacity', String(this.barCursorOpacity));
+                    this.saveUserSetting('custom', 'barCursorOpacity', value);
                     this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
                 }, value => `${Math.round(value * 100)}%`),
                 this.selectRow(
@@ -361,7 +385,7 @@ export class PlaygroundSidePanel implements Mountable {
                     this.barCursorPosition,
                     value => {
                         this.barCursorPosition = value as 'above' | 'below';
-                        localStorage.setItem('at-playground-bar-cursor-position', this.barCursorPosition);
+                        this.saveUserSetting('custom', 'barCursorPosition', value);
                         this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
                     }
                 ),
@@ -370,7 +394,8 @@ export class PlaygroundSidePanel implements Mountable {
                 this.colorRow('Bar Number', 'display.resources.barNumberColor'),
                 this.colorRow('Main Glyphs', 'display.resources.mainGlyphColor'),
                 this.colorRow('Secondary Glyphs', 'display.resources.secondaryGlyphColor'),
-                this.colorRow('Score Info', 'display.resources.scoreInfoColor')
+                this.colorRow('Score Info', 'display.resources.scoreInfoColor'),
+                this.colorRow('Watermark', 'display.resources.watermarkColor')
             ]),
             this.section('Display ▸ Fonts', [
                 this.fontRow('Copyright', 'display.resources.copyrightFont'),
@@ -386,7 +411,8 @@ export class PlaygroundSidePanel implements Mountable {
                 this.fontRow('Grace Notes', 'display.resources.graceFont'),
                 this.fontRow('Bar Numbers', 'display.resources.barNumberFont'),
                 this.fontRow('Inline Fingering', 'display.resources.inlineFingeringFont'),
-                this.fontRow('Markers', 'display.resources.markerFont')
+                this.fontRow('Markers', 'display.resources.markerFont'),
+                this.fontRow('Watermark', 'display.resources.watermarkFont')
             ]),
             this.section('Display ▸ Paddings', [
                 this.paddingRow('Horizontal', 0),
@@ -441,7 +467,7 @@ export class PlaygroundSidePanel implements Mountable {
                 this.stylesheetEnumRow('First System Track Name Format', 'firstSystemTrackNameMode', alphaTab.model.TrackNameMode),
                 this.stylesheetEnumRow('First System Track Name Orientation', 'firstSystemTrackNameOrientation', alphaTab.model.TrackNameOrientation),
                 this.stylesheetEnumRow('Other Systems Track Name Format', 'otherSystemsTrackNameMode', alphaTab.model.TrackNameMode),
-                this.stylesheetEnumRow('Other Systems Track Name Orientation', 'otherSystemsTrackNameOrientation', alphaTab.model.TrackNameOrientation),
+                this.stylesheetEnumRow('Other Systems Track Name Orientation', 'otherSystemsTrackNameOrientation', alphaTab.model.TrackNameMode),
                 this.stylesheetToggleRow('Multi-Bar Rests', 'multiTrackMultiBarRest')
             ]),
             this.section('Export', [
@@ -449,6 +475,18 @@ export class PlaygroundSidePanel implements Mountable {
                     { label: 'Export MIDI', action: () => this.api.downloadMidi() },
                     { label: 'Export Guitar Pro', action: () => exportGp7(this.api) },
                     { label: 'Print', action: () => this.api.print() }
+                ])
+            ]),
+            this.section('Settings Control', [
+                this.actionsRow([
+                    {
+                        label: 'Reset Settings',
+                        action: () => {
+                            if (window.confirm('Are you sure you want to reset all settings to defaults?')) {
+                                this.resetSettings();
+                            }
+                        }
+                    }
                 ])
             ])
         );
@@ -481,6 +519,7 @@ export class PlaygroundSidePanel implements Mountable {
 
                 // Update alphaTab rendering colors to match the theme
                 this.applyThemeToScore(isDark);
+                this.saveUserSetting('custom', 'theme', button.dataset.theme);
                 this.buildSettings(); // Rebuild panel settings to sync color pickers
             });
         }
@@ -527,6 +566,7 @@ export class PlaygroundSidePanel implements Mountable {
                     b.classList.toggle('active', b === button);
                 }
                 this.api.settings.core.engine = button.dataset.engine!;
+                this.saveUserSetting('settings', 'core.engine', button.dataset.engine!);
                 this.render();
             });
         }
@@ -580,6 +620,7 @@ export class PlaygroundSidePanel implements Mountable {
     ): HTMLElement {
         return this.numberRow(label, Number(this.getPath(this.api.settings, path) ?? 0), value => {
             this.setPath(this.api.settings, path, value);
+            this.saveUserSetting('settings', path, value);
             this.update(render);
             afterUpdate?.();
         });
@@ -588,6 +629,7 @@ export class PlaygroundSidePanel implements Mountable {
     private paddingRow(label: string, index: number): HTMLElement {
         return this.numberRow(label, this.api.settings.display.padding[index], value => {
             this.api.settings.display.padding[index] = value;
+            this.saveUserSetting('settings', 'display.padding', this.api.settings.display.padding);
             this.render();
         });
     }
@@ -602,6 +644,7 @@ export class PlaygroundSidePanel implements Mountable {
             this.noteColorScheme,
             value => {
                 this.noteColorScheme = value as NoteColorScheme;
+                this.saveUserSetting('custom', 'noteColorScheme', this.noteColorScheme);
                 if (this.api.score) {
                     applySuzukiNoteColors(this.api.score, this.noteColorScheme === 'suzuki');
                     this.api.render();
@@ -621,6 +664,7 @@ export class PlaygroundSidePanel implements Mountable {
             const parsed = this.parseColor(input.value);
             if (parsed) {
                 this.setPath(this.api.settings, path, parsed);
+                this.saveUserSetting('settings', path, parsed);
                 this.render();
             }
         });
@@ -630,18 +674,37 @@ export class PlaygroundSidePanel implements Mountable {
 
     private fontRow(label: string, path: string): HTMLElement {
         const font = this.getPath(this.api.settings, path);
-        const initial = Array.isArray(font?.families) ? font.families.join(', ') : '';
+        const initialFamilies = Array.isArray(font?.families) ? font.families.join(', ') : '';
+        const initialSize = typeof font?.size === 'number' ? font.size : 12;
+
         const row = this.row(label);
-        const control = row.querySelector('.at-settings-control')!;
-        const input = parseHtml(html`<input type="text" value="${initial}" />`) as HTMLInputElement;
-        input.addEventListener('change', () => {
-            const target = this.getPath(this.api.settings, path);
-            if (target?.families) {
-                target.families = input.value.split(',').map(v => v.trim()).filter(Boolean);
-                this.render();
-            }
-        });
-        control.appendChild(input);
+        const control = row.querySelector('.at-settings-control') as HTMLElement;
+        if (control) {
+            const familyInput = parseHtml(html`<input type="text" value="${initialFamilies}" style="flex: 1; min-width: 0;" placeholder="Families" />`) as HTMLInputElement;
+            familyInput.addEventListener('change', () => {
+                const target = this.getPath(this.api.settings, path);
+                if (target?.families) {
+                    target.families = familyInput.value.split(',').map(v => v.trim()).filter(Boolean);
+                    this.saveUserSetting('settings', path, target);
+                    this.render();
+                }
+            });
+
+            const sizeInput = parseHtml(html`<input type="number" value="${initialSize}" style="width: 50px; text-align: center;" min="1" max="100" />`) as HTMLInputElement;
+            sizeInput.addEventListener('change', () => {
+                const target = this.getPath(this.api.settings, path);
+                if (target) {
+                    target.size = Number(sizeInput.value);
+                    this.saveUserSetting('settings', path, target);
+                    this.render();
+                }
+            });
+
+            control.style.display = 'flex';
+            control.style.gap = '8px';
+            control.appendChild(familyInput);
+            control.appendChild(sizeInput);
+        }
         return row;
     }
 
@@ -652,7 +715,9 @@ export class PlaygroundSidePanel implements Mountable {
         render = true
     ): HTMLElement {
         return this.selectRow(label, this.enumItems(enumType), String(this.getPath(this.api.settings, path)), value => {
-            this.setPath(this.api.settings, path, Number(value));
+            const numValue = Number(value);
+            this.setPath(this.api.settings, path, numValue);
+            this.saveUserSetting('settings', path, numValue);
             this.update(render);
         });
     }
@@ -660,6 +725,7 @@ export class PlaygroundSidePanel implements Mountable {
     private settingsToggleRow(label: string, path: string, render = true, afterUpdate?: () => void): HTMLElement {
         return this.toggleRow(label, Boolean(this.getPath(this.api.settings, path)), value => {
             this.setPath(this.api.settings, path, value);
+            this.saveUserSetting('settings', path, value);
             this.update(render);
             afterUpdate?.();
         });
@@ -668,12 +734,14 @@ export class PlaygroundSidePanel implements Mountable {
     private apiRangeRow(label: string, path: string, min: number, max: number, step: number): HTMLElement {
         return this.rangeRow(label, min, max, step, Number((this.api as any)[path] ?? 0), value => {
             (this.api as any)[path] = value;
+            this.saveUserSetting('api', path, value);
         }, value => value.toFixed(1));
     }
 
     private apiToggleRow(label: string, path: string): HTMLElement {
         return this.toggleRow(label, Boolean((this.api as any)[path]), value => {
             (this.api as any)[path] = value;
+            this.saveUserSetting('api', path, value);
         });
     }
 
@@ -683,6 +751,7 @@ export class PlaygroundSidePanel implements Mountable {
         }
         return this.toggleRow(label, Boolean((this.api.score.stylesheet as any)[path]), value => {
             (this.api.score!.stylesheet as any)[path] = value;
+            this.saveUserSetting('stylesheet', path, value);
             this.api.render();
         });
     }
@@ -700,7 +769,9 @@ export class PlaygroundSidePanel implements Mountable {
             this.enumItems(enumType),
             String((this.api.score.stylesheet as any)[path]),
             value => {
-                (this.api.score!.stylesheet as any)[path] = Number(value);
+                const numValue = Number(value);
+                (this.api.score!.stylesheet as any)[path] = numValue;
+                this.saveUserSetting('stylesheet', path, numValue);
                 this.api.render();
             }
         );
@@ -827,7 +898,7 @@ export class PlaygroundSidePanel implements Mountable {
         `) as HTMLInputElement;
         input.addEventListener('change', () => {
             this.barCursorColor = input.value;
-            localStorage.setItem('at-playground-bar-cursor-color', this.barCursorColor);
+            this.saveUserSetting('custom', 'barCursorColor', this.barCursorColor);
             this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
         });
         control.appendChild(input);
@@ -887,5 +958,290 @@ export class PlaygroundSidePanel implements Mountable {
         if (this.cursorStyleEl) {
             this.cursorStyleEl.remove();
         }
+    }
+
+    private loadSavedSettings(): void {
+        const dataStr = localStorage.getItem('at-playground-settings');
+        if (!dataStr) {
+            return;
+        }
+        try {
+            const data = JSON.parse(dataStr);
+            if (!data) {
+                return;
+            }
+
+            // 1. Apply Settings Json
+            if (data.settings) {
+                for (const key of Object.keys(data.settings)) {
+                    const savedValue = data.settings[key];
+                    this.applySettingValue(this.api.settings, key, savedValue);
+                }
+            }
+
+            // 2. Apply Api Properties
+            if (data.api) {
+                for (const key of Object.keys(data.api)) {
+                    const savedValue = data.api[key];
+                    if (key in this.api) {
+                        (this.api as any)[key] = savedValue;
+                    }
+                }
+            }
+
+            // 3. Apply Custom properties
+            if (data.custom) {
+                if (data.custom.noteColorScheme) {
+                    this.noteColorScheme = data.custom.noteColorScheme as NoteColorScheme;
+                }
+                if (data.custom.barCursorColor) {
+                    this.barCursorColor = data.custom.barCursorColor;
+                }
+                if (data.custom.barCursorOpacity !== undefined) {
+                    this.barCursorOpacity = Number(data.custom.barCursorOpacity);
+                }
+                if (data.custom.barCursorPosition) {
+                    this.barCursorPosition = data.custom.barCursorPosition as 'above' | 'below';
+                }
+            }
+
+            this.api.updateSettings();
+        } catch (e) {
+            console.error('Failed to load saved settings:', e);
+        }
+    }
+
+    private getSavedCustomSetting(key: string): any {
+        const dataStr = localStorage.getItem('at-playground-settings');
+        if (!dataStr) {
+            return null;
+        }
+        try {
+            const data = JSON.parse(dataStr);
+            return data?.custom?.[key];
+        } catch {
+            return null;
+        }
+    }
+
+    private applySettingValue(settings: alphaTab.Settings, key: string, savedValue: any): void {
+        const parts = key.split('.');
+        let obj: any = settings;
+        let validPath = true;
+        for (let i = 0; i < parts.length - 1; i++) {
+            if (obj && parts[i] in obj) {
+                obj = obj[parts[i]];
+            } else {
+                validPath = false;
+                break;
+            }
+        }
+        if (!validPath || !obj) {
+            return;
+        }
+        const propName = parts[parts.length - 1];
+        const currentValue = obj[propName];
+
+        if (currentValue instanceof alphaTab.model.Color) {
+            const color = alphaTab.model.Color.fromJson(savedValue);
+            if (color) {
+                obj[propName] = color;
+            }
+        } else if (currentValue instanceof alphaTab.model.Font) {
+            const font = alphaTab.model.Font.fromJson(savedValue);
+            if (font) {
+                obj[propName] = font;
+            }
+        } else {
+            obj[propName] = savedValue;
+        }
+    }
+
+    private applySavedStylesheetSettings(score: alphaTab.model.Score): void {
+        const dataStr = localStorage.getItem('at-playground-settings');
+        if (!dataStr) {
+            return;
+        }
+        try {
+            const data = JSON.parse(dataStr);
+            if (data?.stylesheet && score.stylesheet) {
+                for (const key of Object.keys(data.stylesheet)) {
+                    const savedValue = data.stylesheet[key];
+                    if (key in score.stylesheet) {
+                        (score.stylesheet as any)[key] = savedValue;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to apply stylesheet settings:', e);
+        }
+    }
+
+    private saveUserSetting(category: string, key: string, value: any): void {
+        this.saveAllSettings();
+    }
+
+    private saveAllSettings(): void {
+        try {
+            const data: any = {
+                settings: {},
+                api: {},
+                stylesheet: {},
+                custom: {
+                    theme: document.documentElement.classList.contains('dark-theme') ? 'dark' : 'light',
+                    noteColorScheme: this.noteColorScheme,
+                    barCursorColor: this.barCursorColor,
+                    barCursorOpacity: this.barCursorOpacity,
+                    barCursorPosition: this.barCursorPosition
+                }
+            };
+
+            const settingsKeys = [
+                'core.engine',
+                'display.scale',
+                'display.stretchForce',
+                'display.layoutMode',
+                'display.barsPerRow',
+                'display.startBar',
+                'display.barCount',
+                'display.justifyLastSystem',
+                'display.systemsLayoutMode',
+                'display.resources.staffLineColor',
+                'display.resources.barSeparatorColor',
+                'display.resources.barNumberColor',
+                'display.resources.mainGlyphColor',
+                'display.resources.secondaryGlyphColor',
+                'display.resources.scoreInfoColor',
+                'display.resources.watermarkColor',
+                'display.resources.copyrightFont',
+                'display.resources.titleFont',
+                'display.resources.subTitleFont',
+                'display.resources.wordsFont',
+                'display.resources.effectFont',
+                'display.resources.timerFont',
+                'display.resources.directionsFont',
+                'display.resources.fretboardNumberFont',
+                'display.resources.numberedNotationFont',
+                'display.resources.tablatureFont',
+                'display.resources.graceFont',
+                'display.resources.barNumberFont',
+                'display.resources.inlineFingeringFont',
+                'display.resources.markerFont',
+                'display.resources.watermarkFont',
+                'display.padding',
+                'display.firstSystemPaddingTop',
+                'display.systemPaddingTop',
+                'display.lastSystemPaddingBottom',
+                'display.systemPaddingBottom',
+                'display.systemLabelPaddingLeft',
+                'display.systemLabelPaddingRight',
+                'display.accoladeBarPaddingRight',
+                'display.notationStaffPaddingTop',
+                'display.notationStaffPaddingBottom',
+                'display.effectStaffPaddingTop',
+                'display.effectStaffPaddingBottom',
+                'display.firstStaffLeft',
+                'display.staffPaddingLeft',
+                'notation.fingeringMode',
+                'notation.rhythmMode',
+                'notation.rhythmHeight',
+                'notation.smallGraceTabNotes',
+                'notation.extendBendArrowsOnTiedNotes',
+                'notation.extendLineEffectsToBeatEnd',
+                'notation.slurHeight',
+                'player.playerMode',
+                'player.enableCursor',
+                'player.enableAnimatedBeatCursor',
+                'player.enableElementHighlighting',
+                'player.enableUserInteraction',
+                'player.scrollOffsetX',
+                'player.scrollOffsetY',
+                'player.scrollMode',
+                'player.playTripletFeel'
+            ];
+
+            for (const key of settingsKeys) {
+                const val = this.getPath(this.api.settings, key);
+                if (val !== undefined) {
+                    data.settings[key] = this.serializeValue(val);
+                }
+            }
+
+            const apiKeys = [
+                'masterVolume',
+                'metronomeVolume',
+                'countInVolume',
+                'playbackSpeed',
+                'isLooping'
+            ];
+
+            for (const key of apiKeys) {
+                const val = (this.api as any)[key];
+                if (val !== undefined) {
+                    data.api[key] = val;
+                }
+            }
+
+            const stylesheetKeys = [
+                'hideDynamics',
+                'bracketExtendMode',
+                'useSystemSignSeparator',
+                'globalDisplayTuning',
+                'globalDisplayChordDiagramsOnTop',
+                'singleTrackTrackNamePolicy',
+                'multiTrackTrackNamePolicy',
+                'firstSystemTrackNameMode',
+                'firstSystemTrackNameOrientation',
+                'otherSystemsTrackNameMode',
+                'otherSystemsTrackNameOrientation',
+                'multiTrackMultiBarRest'
+            ];
+
+            if (this.api.score && this.api.score.stylesheet) {
+                for (const key of stylesheetKeys) {
+                    const val = (this.api.score.stylesheet as any)[key];
+                    if (val !== undefined) {
+                        data.stylesheet[key] = val;
+                    }
+                }
+            } else {
+                const oldDataStr = localStorage.getItem('at-playground-settings');
+                if (oldDataStr) {
+                    try {
+                        const oldData = JSON.parse(oldDataStr);
+                        if (oldData && oldData.stylesheet) {
+                            data.stylesheet = oldData.stylesheet;
+                        }
+                    } catch {}
+                }
+            }
+
+            localStorage.setItem('at-playground-settings', JSON.stringify(data));
+        } catch (e) {
+            console.error('Failed to save all settings:', e);
+        }
+    }
+
+    private serializeValue(value: any): any {
+        if (value && typeof value === 'object') {
+            if (value instanceof alphaTab.model.Color) {
+                return value.rgba;
+            }
+            if (value instanceof alphaTab.model.Font) {
+                return value.toCssString();
+            }
+            if (Array.isArray(value)) {
+                return value.map(v => this.serializeValue(v));
+            }
+        }
+        return value;
+    }
+
+    private resetSettings(): void {
+        localStorage.removeItem('at-playground-settings');
+        localStorage.removeItem('at-playground-bar-cursor-color');
+        localStorage.removeItem('at-playground-bar-cursor-opacity');
+        localStorage.removeItem('at-playground-bar-cursor-position');
+        window.location.reload();
     }
 }

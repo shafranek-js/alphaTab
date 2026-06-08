@@ -11,6 +11,8 @@ import { NoteStyle, NoteSubElement } from '@coderline/alphatab/model/Note';
 import { type Score, ScoreStyle, ScoreSubElement } from '@coderline/alphatab/model/Score';
 import { TrackStyle, TrackSubElement } from '@coderline/alphatab/model/Track';
 import { VoiceStyle, VoiceSubElement } from '@coderline/alphatab/model/Voice';
+import { Font, FontStyle, FontWeight } from '@coderline/alphatab/model/Font';
+
 
 describe('GeneralTests', () => {
     it('song-details', async () => {
@@ -142,6 +144,15 @@ describe('GeneralTests', () => {
     it('colors', async () => {
         await VisualTestHelper.runVisualTest('general/colors.gp', undefined, o => {
             enableColoring(o.score);
+        });
+    });
+
+    it('watermark-customization', async () => {
+        const settings: Settings = new Settings();
+        settings.display.resources.watermarkFont = Font.withFamilyList(['Arial'], 30, FontStyle.Plain, FontWeight.Bold);
+        settings.display.resources.watermarkColor = new Color(255, 0, 0, 0xff);
+        await VisualTestHelper.runVisualTest('general/colors.gp', settings, o => {
+            o.runs[0].referenceFileName = 'test-data/visual-tests/general/watermark-custom.png';
         });
     });
 
