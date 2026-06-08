@@ -204,6 +204,7 @@ export class PlaygroundSidePanel implements Mountable {
     private originalRenderTracks?: any;
     private barCursorColor: string = '#ffff00';
     private barCursorOpacity: number = 0.25;
+    private barCursorPosition: 'above' | 'below' = 'above';
     private cursorStyleEl?: HTMLStyleElement;
 
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
@@ -211,7 +212,8 @@ export class PlaygroundSidePanel implements Mountable {
     constructor(private api: alphaTab.AlphaTabApi) {
         this.barCursorColor = localStorage.getItem('at-playground-bar-cursor-color') ?? '#ffff00';
         this.barCursorOpacity = Number(localStorage.getItem('at-playground-bar-cursor-opacity') ?? '0.25');
-        this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity);
+        this.barCursorPosition = (localStorage.getItem('at-playground-bar-cursor-position') as 'above' | 'below') ?? 'above';
+        this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
         this.root = parseHtml(html`
             <aside class="at-side-panel" aria-hidden="true">
                 <div class="cmp-close"></div>
@@ -348,8 +350,21 @@ export class PlaygroundSidePanel implements Mountable {
                 this.rangeRow('Bar Cursor Opacity', 0, 1, 0.05, this.barCursorOpacity, value => {
                     this.barCursorOpacity = value;
                     localStorage.setItem('at-playground-bar-cursor-opacity', String(this.barCursorOpacity));
-                    this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity);
+                    this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
                 }, value => `${Math.round(value * 100)}%`),
+                this.selectRow(
+                    'Bar Cursor Layer',
+                    [
+                        { value: 'above', label: 'Above Score' },
+                        { value: 'below', label: 'Behind Score' }
+                    ],
+                    this.barCursorPosition,
+                    value => {
+                        this.barCursorPosition = value as 'above' | 'below';
+                        localStorage.setItem('at-playground-bar-cursor-position', this.barCursorPosition);
+                        this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
+                    }
+                ),
                 this.colorRow('Staff Line', 'display.resources.staffLineColor'),
                 this.colorRow('Bar Separator', 'display.resources.barSeparatorColor'),
                 this.colorRow('Bar Number', 'display.resources.barNumberColor'),
@@ -813,23 +828,38 @@ export class PlaygroundSidePanel implements Mountable {
         input.addEventListener('change', () => {
             this.barCursorColor = input.value;
             localStorage.setItem('at-playground-bar-cursor-color', this.barCursorColor);
-            this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity);
+            this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
         });
         control.appendChild(input);
         return row;
     }
 
-    private updateCursorStyles(color: string, opacity: number): void {
+    private updateCursorStyles(color: string, opacity: number, position: 'above' | 'below'): void {
         if (!this.cursorStyleEl) {
             this.cursorStyleEl = document.createElement('style');
             this.cursorStyleEl.id = 'at-custom-cursor-styles';
             document.head.appendChild(this.cursorStyleEl);
         }
+
+        let zIndexStyle = '';
+        if (position === 'below') {
+            zIndexStyle = `
+                .at-cursors {
+                    z-index: 1 !important;
+                }
+                .at-cursors ~ svg, .at-cursors ~ canvas {
+                    position: relative !important;
+                    z-index: 2 !important;
+                }
+            `;
+        }
+
         this.cursorStyleEl.textContent = `
             .at-cursor-bar {
                 background: ${color} !important;
                 opacity: ${opacity} !important;
             }
+            ${zIndexStyle}
         `;
     }
 
