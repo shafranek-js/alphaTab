@@ -2,6 +2,7 @@ import type * as alphaTab from '@coderline/alphatab';
 import { type Mountable, css, html, injectStyles, parseHtml } from '../util/Dom';
 import { FontAwesomeIcons, fontAwesomeIcon } from '../util/Icons';
 import { saveTrackSettings } from '../util/trackSettings';
+import { generalMidiInstruments, generalMidiDrums } from '../util/midiInstruments';
 
 injectStyles(
     'TrackItem',
@@ -160,25 +161,10 @@ export class TrackItem implements Mountable {
                         <button type="button" class="track-button danger" title="Mute" aria-label="Mute"></button>
                     </div>
                 </div>
-                <div class="settings-item">
+                 <div class="settings-item">
                     <div class="settings-item-label">Instrument</div>
                     <div class="settings-item-control">
                         <select class="track-instrument">
-                            <option value="0">Piano</option>
-                            <option value="24">Nylon Guitar</option>
-                            <option value="25">Steel Guitar</option>
-                            <option value="26">Jazz Guitar</option>
-                            <option value="27">Clean Guitar</option>
-                            <option value="28">Muted Guitar</option>
-                            <option value="29">Overdriven Guitar</option>
-                            <option value="30">Distortion Guitar</option>
-                            <option value="33">Finger Bass</option>
-                            <option value="34">Pick Bass</option>
-                            <option value="40">Violin</option>
-                            <option value="48">Strings</option>
-                            <option value="56">Trumpet</option>
-                            <option value="73">Flute</option>
-                            <option value="116">Taiko Drum</option>
                         </select>
                     </div>
                 </div>
@@ -212,6 +198,28 @@ export class TrackItem implements Mountable {
         this.transposeAudio = this.root.querySelector<HTMLInputElement>('.track-transpose-audio')!;
         this.instrument = this.root.querySelector<HTMLSelectElement>('.track-instrument')!;
 
+        const isPercussion = track.staves.some(s => s.isPercussion);
+        if (isPercussion) {
+            for (const kit of generalMidiDrums) {
+                const option = document.createElement('option');
+                option.value = String(kit.program);
+                option.textContent = kit.name;
+                this.instrument.appendChild(option);
+            }
+        } else {
+            for (const group of generalMidiInstruments) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group.groupName;
+                for (const inst of group.instruments) {
+                    const option = document.createElement('option');
+                    option.value = String(inst.program);
+                    option.textContent = inst.name;
+                    optgroup.appendChild(option);
+                }
+                this.instrument.appendChild(optgroup);
+            }
+        }
+
         this.instrument.value = String(track.playbackInfo.program);
 
         let savedTranspositionPitch = 0;
@@ -239,11 +247,21 @@ export class TrackItem implements Mountable {
                 const primaryChan = this.track.playbackInfo.primaryChannel;
                 const secondaryChan = this.track.playbackInfo.secondaryChannel;
                 for (const t of this.api.score.tracks) {
-                    if (t.playbackInfo.primaryChannel === primaryChan) {
+                    if (t.playbackInfo.primaryChannel === primaryChan || t.playbackInfo.secondaryChannel === secondaryChan) {
                         t.playbackInfo.program = program;
-                    }
-                    if (t.playbackInfo.secondaryChannel === secondaryChan) {
-                        t.playbackInfo.program = program;
+                        for (const staff of t.staves) {
+                            for (const bar of staff.bars) {
+                                for (const voice of bar.voices) {
+                                    for (const beat of voice.beats) {
+                                        for (const automation of beat.automations) {
+                                            if (automation.type === 2) { // AutomationType.Instrument
+                                                automation.value = program;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
