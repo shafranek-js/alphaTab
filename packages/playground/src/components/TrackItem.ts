@@ -144,6 +144,7 @@ export class TrackItem implements Mountable {
     private transposeAudio: HTMLInputElement;
     private instrument: HTMLSelectElement;
     private balance: HTMLInputElement;
+    private transposeLockBtn: HTMLButtonElement;
 
     constructor(
         private api: alphaTab.AlphaTabApi,
@@ -181,10 +182,16 @@ export class TrackItem implements Mountable {
                         <input class="track-balance" type="range" min="0" max="16" value="${track.playbackInfo.balance}" />
                     </div>
                 </div>
-                <div class="settings-item">
+                 <div class="settings-item">
                     <div class="settings-item-label" title="Fully transposes the track (audio and notation)">Transpose Full</div>
                     <div class="settings-item-control">
                         <input class="track-transpose-full" type="range" min="-12" max="12" step="1" value="0" />
+                    </div>
+                </div>
+                <div class="settings-item">
+                    <div class="settings-item-label">Link Transposition</div>
+                    <div class="settings-item-control">
+                        <button type="button" class="track-button track-transpose-lock success active" title="Link Sliders" aria-label="Link Sliders">🔒</button>
                     </div>
                 </div>
                 <div class="settings-item">
@@ -203,6 +210,7 @@ export class TrackItem implements Mountable {
         this.volume = this.root.querySelector<HTMLInputElement>('.track-volume')!;
         this.balance = this.root.querySelector<HTMLInputElement>('.track-balance')!;
         this.transposeFull = this.root.querySelector<HTMLInputElement>('.track-transpose-full')!;
+        this.transposeLockBtn = this.root.querySelector<HTMLButtonElement>('.track-transpose-lock')!;
         this.transposeAudio = this.root.querySelector<HTMLInputElement>('.track-transpose-audio')!;
         this.instrument = this.root.querySelector<HTMLSelectElement>('.track-instrument')!;
 
@@ -253,6 +261,24 @@ export class TrackItem implements Mountable {
             savedTransposeFull = pitches[track.index] ?? 0;
         }
         this.transposeFull.value = String(savedTransposeFull);
+
+        let savedTransposeLocked = true;
+        if (this.api.score) {
+            const key = `${this.api.score.title}::${this.api.score.artist}`;
+            const savedSettingsStr = typeof localStorage !== 'undefined' ? localStorage.getItem('at-playground-track-settings') : null;
+            if (savedSettingsStr) {
+                try {
+                    const allSettings = JSON.parse(savedSettingsStr);
+                    const savedTrack = allSettings[key]?.tracks?.find((t: any) => t.index === track.index);
+                    if (savedTrack && savedTrack.transposeLocked !== undefined) {
+                        savedTransposeLocked = savedTrack.transposeLocked;
+                    }
+                } catch {}
+            }
+        }
+        this.transposeLockBtn.classList.toggle('active', savedTransposeLocked);
+        this.transposeLockBtn.classList.toggle('success', savedTransposeLocked);
+        this.transposeLockBtn.textContent = savedTransposeLocked ? '🔒' : '🔓';
 
         this.instrument.addEventListener('change', () => {
             const program = Number(this.instrument.value);
@@ -377,20 +403,44 @@ export class TrackItem implements Mountable {
             this.api.loadMidiForScore();
             saveTrackSettings(this.api);
         });
+        this.transposeLockBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            const active = !this.transposeLockBtn.classList.contains('active');
+            this.transposeLockBtn.classList.toggle('active', active);
+            this.transposeLockBtn.classList.toggle('success', active);
+            this.transposeLockBtn.textContent = active ? '🔒' : '🔓';
+            saveTrackSettings(this.api);
+        });
         this.transposeAudio.addEventListener('input', e => {
             e.stopPropagation();
-            this.api.changeTrackTranspositionPitch([this.track], this.transposeAudio.valueAsNumber);
+            const val = this.transposeAudio.valueAsNumber;
+            this.api.changeTrackTranspositionPitch([this.track], val);
+            if (this.transposeLockBtn.classList.contains('active')) {
+                this.transposeFull.value = String(val);
+                const pitches = this.api.settings.notation.transpositionPitches;
+                while (pitches.length < this.track.index + 1) {
+                    pitches.push(0);
+                }
+                pitches[this.track.index] = val;
+                this.api.updateSettings();
+                this.api.render();
+            }
             saveTrackSettings(this.api);
         });
         this.transposeFull.addEventListener('input', e => {
             e.stopPropagation();
+            const val = this.transposeFull.valueAsNumber;
             const pitches = this.api.settings.notation.transpositionPitches;
             while (pitches.length < this.track.index + 1) {
                 pitches.push(0);
             }
-            pitches[this.track.index] = this.transposeFull.valueAsNumber;
+            pitches[this.track.index] = val;
             this.api.updateSettings();
             this.api.render();
+            if (this.transposeLockBtn.classList.contains('active')) {
+                this.transposeAudio.value = String(val);
+                this.api.changeTrackTranspositionPitch([this.track], val);
+            }
             saveTrackSettings(this.api);
         });
 

@@ -22,6 +22,7 @@ export function saveTrackSettings(api: alphaTab.AlphaTabApi): void {
         const selectEl = el.querySelector<HTMLSelectElement>('.track-instrument');
         const soloEl = el.querySelector<HTMLButtonElement>('.track-button.success');
         const muteEl = el.querySelector<HTMLButtonElement>('.track-button.danger');
+        const lockEl = el.querySelector<HTMLButtonElement>('.track-transpose-lock');
 
         const staffElements = el.querySelectorAll('.track-staves > .settings-item');
         const staves: any[] = [];
@@ -58,6 +59,7 @@ export function saveTrackSettings(api: alphaTab.AlphaTabApi): void {
             isSolo: soloEl ? soloEl.classList.contains('active') : track.playbackInfo.isSolo,
             transpositionPitch: transposeAudioEl ? transposeAudioEl.valueAsNumber : 0,
             transposeFull: transposeFullEl ? transposeFullEl.valueAsNumber : 0,
+            transposeLocked: lockEl ? lockEl.classList.contains('active') : true,
             program: selectEl ? Number(selectEl.value) : track.playbackInfo.program,
             staves
         });
