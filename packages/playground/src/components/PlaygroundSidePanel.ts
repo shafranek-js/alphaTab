@@ -1096,6 +1096,10 @@ export class PlaygroundSidePanel implements Mountable {
                 if (data.custom.darkThemeBgColor) {
                     this.darkThemeBgColor = data.custom.darkThemeBgColor;
                 }
+                if (data.custom.transpose !== undefined) {
+                    const savedTranspose = Number(data.custom.transpose);
+                    this.api.settings.notation.transpositionPitches = [savedTranspose];
+                }
                 this.applyBackgroundColors();
             }
 
@@ -1194,7 +1198,8 @@ export class PlaygroundSidePanel implements Mountable {
                     barCursorPosition: this.barCursorPosition,
                     notationElements,
                     lightThemeBgColor: this.lightThemeBgColor,
-                    darkThemeBgColor: this.darkThemeBgColor
+                    darkThemeBgColor: this.darkThemeBgColor,
+                    transpose: this.api.settings.notation.transpositionPitches[0] || 0
                 }
             };
 

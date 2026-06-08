@@ -448,6 +448,7 @@ export class TransportBar implements Mountable {
             const next = !api.isLooping;
             api.isLooping = next;
             this.looping.root.classList.toggle('active', next);
+            this.saveSetting('isLooping', next);
         };
 
         const metronomeInput = this.root.querySelector<HTMLInputElement>('.at-metronome-volume')!;
@@ -456,6 +457,7 @@ export class TransportBar implements Mountable {
             api.metronomeVolume = val;
             const label = this.root.querySelector('.at-metronome-volume-value')!;
             label.textContent = `${(val * 100).toFixed(0)}%`;
+            this.saveSetting('metronomeVolume', val);
         });
 
         const countInInput = this.root.querySelector<HTMLInputElement>('.at-count-in-volume')!;
@@ -464,6 +466,7 @@ export class TransportBar implements Mountable {
             api.countInVolume = val;
             const label = this.root.querySelector('.at-count-in-volume-value')!;
             label.textContent = `${(val * 100).toFixed(0)}%`;
+            this.saveSetting('countInVolume', val);
         });
 
         const speedInput = this.root.querySelector<HTMLInputElement>('.at-playback-speed')!;
@@ -472,6 +475,7 @@ export class TransportBar implements Mountable {
             api.playbackSpeed = val;
             const label = this.root.querySelector('.at-playback-speed-value')!;
             label.textContent = `${val.toFixed(1)}x`;
+            this.saveSetting('playbackSpeed', val);
         });
 
         this.subscriptions.push(
@@ -540,6 +544,27 @@ export class TransportBar implements Mountable {
             api.scoreLoaded.on(() => {
                 this.transposeIntervals = [];
                 this.currentTransposeIndex = -1;
+
+                // Load saved transpose from localStorage
+                let savedTranspose = 0;
+                try {
+                    const dataStr = localStorage.getItem('at-playground-settings');
+                    if (dataStr) {
+                        const data = JSON.parse(dataStr);
+                        if (data?.custom?.transpose !== undefined) {
+                            savedTranspose = Number(data.custom.transpose);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to load saved transpose:', e);
+                }
+
+                if (savedTranspose !== 0 && api.tracks && api.tracks.length > 0) {
+                    const transpositionPitches = api.tracks.map(() => savedTranspose);
+                    api.settings.notation.transpositionPitches = transpositionPitches;
+                    api.updateSettings();
+                }
+
                 this.calculateTransposeOptions(api);
                 this.updateTransposeUI(api);
             })
@@ -550,6 +575,7 @@ export class TransportBar implements Mountable {
                 this.updateTransposeUI(api);
             })
         );
+        this.syncControls(api);
     }
 
     setSidePanelMode(mode: PlaygroundSidePanelMode): void {
@@ -716,6 +742,30 @@ export class TransportBar implements Mountable {
         api.updateSettings();
         api.render();
         api.changeTrackTranspositionPitch(api.tracks, interval);
+        this.saveSetting('transpose', interval);
+    }
+
+    private saveSetting(key: 'metronomeVolume' | 'countInVolume' | 'playbackSpeed' | 'isLooping' | 'transpose', value: any): void {
+        try {
+            const dataStr = localStorage.getItem('at-playground-settings');
+            const data = dataStr ? JSON.parse(dataStr) : {};
+            if (!data.api) {
+                data.api = {};
+            }
+            if (!data.custom) {
+                data.custom = {};
+            }
+
+            if (key === 'transpose') {
+                data.custom.transpose = value;
+            } else {
+                data.api[key] = value;
+            }
+
+            localStorage.setItem('at-playground-settings', JSON.stringify(data));
+        } catch (e) {
+            console.error('Failed to save setting to localStorage:', e);
+        }
     }
 
     dispose(): void {
