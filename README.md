@@ -1,78 +1,127 @@
-# AlphaTab
+# alphaTab
 
 [![Official Site](https://img.shields.io/badge/site-alphatab.net-blue.svg)](https://www.alphatab.net/)
 [![Documentation](https://img.shields.io/badge/docs-alphatab.net-blue.svg)](https://www.alphatab.net/docs/introduction)
 [![License MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-green.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
 [![Build](https://github.com/CoderLine/alphaTab/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/CoderLine/alphaTab/actions/workflows/build.yml)
 
-alphaTab is a cross platform music notation and guitar tablature rendering library. You can use alphaTab within your own website or application to load and display music sheets from data sources like Guitar Pro or the built in markup language named alphaTex.
+alphaTab is a cross-platform music notation and guitar tablature rendering library. You can use alphaTab within your own website or application to load and display interactive music sheets from various data sources like Guitar Pro, MusicXML, or alphaTab's built-in markup language, alphaTex.
 
 ![alphaTab](img/banner.png?raw=true "alphaTab")
 
-## Getting Started
+---
 
-To get started follow our guides and tutorials at:
+## 🏗️ Monorepo Architecture
 
-* <https://www.alphatab.net/docs/introduction>
-* <https://www.alphatab.net/docs/tutorials>
+The repository is structured as a monorepo containing multiple packages under the `packages/` directory:
 
-## Features
+* **`packages/alphatab`**: The core library containing the rendering logic, file importers (Guitar Pro, MusicXML, alphaTex), and the synthesizer engine.
+* **`packages/playground`**: A feature-rich Vite-based playground application for demonstrating, testing, and debugging alphaTab features in real-time.
+* **`packages/lsp`**: A Language Server Protocol implementation for alphaTex, helping developers integrate notation editing helpers into editors.
+* **`packages/monaco`**: Monaco Editor integration components for editing alphaTex.
+* **`packages/vite`** & **`packages/webpack`**: Integration plugins for modern JavaScript packagers and bundlers.
 
-alphaTab mostly focuses on web based platforms allowing music notation to be embedded into websites and browser based apps but is also designed to be used on various other platforms like .net and Android either as a platform native integration or through runtime specific JavaScript engines.
+---
 
-alphaTab can load music notation from various sources like Guitar Pro 3-7, AlphaTex and MusicXML and render them into beautiful music sheets right within your browser (or application). Using a built in midi synthesizer named alphaSynth the music sheets can also be played in your browser.
+## ✨ Core Features
 
-* Load GuitarPro 3-5, GuitarPro 6, Guitar Pro 7, AlphaTex or MusicXML
-* Render as SVG or Raster Graphics (raster graphics depends on platform: HTML5 canvas, GDI+, SkiaSharp, Android Canvas)...
-* Display single or multiple instruments as standard music notation and guitar tablatures consisting of song information, repeats, alternate endings, guitar tunints, clefs, key signatures, time signatures, notes, rests, accidentals, drum tabs, piano grand staff, tied notes, grace notes, dead notes, ghost notes, markers, tempos, lyrics, chords, vibratos, dynamics, tap/slap/pop, fade-in, let-ring, palm-mute, string bends, whammy bar, tremolo picking, strokes, slides, trills, pick strokes, tuplets, fingering, triplet feels,...
-* Adapt to your responsive design by dynamic resizing
-* Play the music sheet via built-in Midi+SoundFont2 Synthesizer (output depends on platform: HTML5 Web Audio, NAudio, Android AudioTrack)
+* **File Format Support**: Load and play files from Guitar Pro 3-5 (`.gp3`, `.gp4`, `.gp5`), Guitar Pro 6 (`.gpx`), Guitar Pro 7/8 (`.gp`), MusicXML, and alphaTex.
+* **Responsive Rendering**: Beautiful music sheets rendered dynamically as scalable vector graphics (SVG) or canvas elements that adjust perfectly to different viewport widths.
+* **Rich Notation & Articulations**: Display single or multiple instruments as standard notation, guitar tablature, or drum tabs. Supports key signatures, time signatures, accidentals, repeats, alternate endings, tied notes, grace notes, bends, let-ring, vibratos, lyrics, chords, and much more.
+* **Built-in Synthesizer (alphaSynth)**: An advanced WebAudio-based MIDI synthesizer that plays music sheets directly in the browser.
 
-## Officially Supported Platforms
+---
 
- Platform | Support | Availability
-----------|---------|--------------
-Browsers using `script` includes (UMD) | Full experience including low level APIs, Background Workers, Audio Playback, SVG and HTML5 rendering. UI level integration for user interaction and automatic resizing. | 1.0-latest
-Node.js using `require` (UMD) | Access to all low level APIs and SVG rendering | 1.0-latest
-.net standard 2.0 | Access to all low level APIs and multiple render engines (SVG, GDI+, SkiaSharp) | 1.0-latest
-.netcoreapp3.1 (WPF) | Full experience including low level APIs, Background Workers, Audio Playback (through NAudio), SVG and HTML5 rendering. UI level integration for user interaction and automatic resizing. | 1.0-1.2.2
-.netcoreapp3.1 (WinForms) | Full experience including low level APIs, Background Workers, Audio Playback (through NAudio), SVG and HTML5 rendering. UI level integration for user interaction and automatic resizing. Reduced UI level integration related to transparency and animations. | 1.0-1.2.2
-Browsers using ES6 Modules (ESM) | Full experience including low level APIs, Background Workers, Audio Playback, SVG and HTML5 rendering. UI level integration for user interaction and automatic resizing. | 1.3
-Node.js using `import` (ESM) | Access to all low level APIs and SVG rendering | 1.3
-.net8.0-windows (WPF) | Full experience including low level APIs, Background Workers, Audio Playback (through NAudio), SVG and HTML5 rendering. UI level integration for user interaction and automatic resizing. | 1.3
-.net8.0-windows (WinForms) | Full experience including low level APIs, Background Workers, Audio Playback (through NAudio), SVG and HTML5 rendering. UI level integration for user interaction and automatic resizing. Reduced UI level integration related to transparency and animations. | 1.3
-Android (Kotlin) | Full experience including low level APIs, Background Workers, Audio Playback, Android Canvas and SVG rendering. UI level integration for user interaction and automatic resizing. Reduced UI level integration related to transparency and animations. | 1.3
+## 🎛️ Playground App Features
 
-## Running the Playground Locally
+The playground app (`packages/playground`) showcases the full power of alphaTab's interactive APIs and custom UI controls:
 
-To run the playground of `alphaTab` locally for development and testing:
+### 🔊 Comprehensive Playback Control Bar
+* **Play / Pause / Stop**: Classic media controls linked directly to the synthesizer state.
+* **Looping Toggle**: Loops playback over a selected range or the entire song.
+* **Playback Speed Slider**: Dynamically adjust speed from `0.1x` to `3.0x`.
+* **Metronome Volume**: Control the volume of metronome ticks during playback.
+* **Count-In Volume**: Adjust volume for count-in ticks before song playback starts.
 
-1. Install dependencies:
+### 🎸 Detailed Track Settings & Mixers
+* **Instrument Selection**: Switch track instruments dynamically in real-time. Automatically synchronizes beat-level program change events to prevent automated instruments from locking the selection.
+* **Solo / Mute**: Toggle soloing or muting for individual tracks.
+* **Volume & Pan (Balance) Sliders**: Adjust track volume levels and spatial panning.
+* **Transposition Sliders**: Support for transposing both audio and notation by up to two octaves (`-24` to `+12` semitones), with optional linked sliders.
+* **Stave Layout Options**: Toggle standard notation, tablature, slash notation, or numbered notation individually per staff.
+
+### 🎨 Live Theme & Visual Customizations
+* **Dark & Light Mode**: Seamless theme switching.
+* **Custom Background Colors**: Color pickers to adjust theme backgrounds dynamically, saved persistently.
+* **Bar Cursor Customization**: A native color picker to change the active playback bar highlighter.
+* **Layout Filters**: Interactive toggles for score title, layout elements, page outlines, and spacing templates.
+
+---
+
+## 🎹 Synthesizer & SoundFont Technology
+
+alphaTab features a custom `TinySoundFont` implementation optimized for web applications:
+
+* **Vorbis-Compressed SF3 Support**: Connects high-quality, lightweight compressed SoundFonts (such as `FluidR3.sf3` by default) to dramatically reduce download sizes (from ~150MB down to ~20MB) while maintaining excellent audio quality.
+* **Stereo Down-Mixing**: Intelligently treats the Left stereo channel as mono and skips the Right stereo channel to balance volume and save processing power.
+* **Zombie Voice Prevention**: Actively guards against infinite loops by ignoring empty sample regions, ensuring active voice slots are not exhausted.
+
+---
+
+## 🚀 Getting Started (Developers)
+
+### Prerequisites
+
+Make sure you have [Node.js](https://nodejs.org/) installed on your machine.
+
+### Local Development Setup
+
+1. **Install Dependencies**:
    ```bash
    npm install
    ```
-2. Start the developer server:
+
+2. **Run Typecheck**:
+   ```bash
+   npm run typecheck
+   ```
+
+3. **Start the Playground Locally**:
    ```bash
    npm run dev
    ```
+   Open the local address shown in the terminal (usually `http://localhost:5174/` or `http://localhost:5173/`).
 
-This runs the Vite-based playground. Open the displayed local address (e.g., `http://localhost:5173`) in your browser.
+4. **Build the Project**:
+   ```bash
+   npm run build
+   ```
 
-## Thanks to...
+5. **Run Tests**:
+   ```bash
+   npm run test
+   ```
 
-... our friends of BrowserStack for a free plan. This allows me to test alphaTab on all browsers on all operating systems. Only with this I can ensure that alphaTab is shown to all your visitors as expected.
+---
 
-<p align="center">
-<a href="https://www.browserstack.com" target="_blank"><img src="img/BrowserStack.png?raw=true" width="400" align="center"/></a>
-</p>
+## 📚 Documentation & Guides
 
-... our friends at JetBrains for a Open Source License of their products. This allows me to develop all the flavors of alphaTab with the latest and greatest coding and debugging assistance.
+For details on API usage, custom settings, and step-by-step tutorials, please visit our official resources:
+* **Guides & Introduction**: [alphatab.net/docs/introduction](https://www.alphatab.net/docs/introduction)
+* **API Documentation**: [alphatab.net/docs/tutorials](https://www.alphatab.net/docs/tutorials)
 
-<p align="center">
-<a href="https://www.jetbrains.com/" target="_blank"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" width="150" align="center"/></a><br />
-Copyright © 2000-2022 JetBrains s.r.o. JetBrains and the JetBrains logo are registered trademarks of JetBrains s.r.o.
-</p>
+---
 
-... [Bernhard Schelling](https://github.com/schellingb/TinySoundFont) the author of TinySoundFont and [Steve Folta](https://github.com/stevefolta/SFZero) the author of SFZero for providing the core of the synthesis engine.
+## ❤️ Acknowledgements & Credits
 
-... all you people using alphaTab providing new feature ideas and bug reports.
+* **JetBrains**: For providing Open Source licenses for their development tools, allowing us to build across multiple platforms with modern IDE assistance.
+  <p align="center">
+    <a href="https://www.jetbrains.com/" target="_blank"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" width="120" /></a>
+  </p>
+
+* **BrowserStack**: For providing a free cross-browser testing plan, helping us ensure that alphaTab renders perfectly on all devices and OS configurations.
+  <p align="center">
+    <a href="https://www.browserstack.com" target="_blank"><img src="img/BrowserStack.png?raw=true" width="300" /></a>
+  </p>
+
+* **TinySoundFont & SFZero**: Special thanks to Bernhard Schelling (author of [TinySoundFont](https://github.com/schellingb/TinySoundFont)) and Steve Folta (author of [SFZero](https://github.com/stevefolta/SFZero)) for providing the foundation of our synthesis engine.
