@@ -202,14 +202,16 @@ export class PlaygroundSidePanel implements Mountable {
     private originalRender?: any;
     private originalRenderScore?: any;
     private originalRenderTracks?: any;
-    private barCursorColor: string = 'rgba(255, 255, 0, 0.25)';
+    private barCursorColor: string = '#ffff00';
+    private barCursorOpacity: number = 0.25;
     private cursorStyleEl?: HTMLStyleElement;
 
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
 
     constructor(private api: alphaTab.AlphaTabApi) {
-        this.barCursorColor = localStorage.getItem('at-playground-bar-cursor-color') ?? 'rgba(255, 255, 0, 0.25)';
-        this.updateCursorStyles(this.barCursorColor);
+        this.barCursorColor = localStorage.getItem('at-playground-bar-cursor-color') ?? '#ffff00';
+        this.barCursorOpacity = Number(localStorage.getItem('at-playground-bar-cursor-opacity') ?? '0.25');
+        this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity);
         this.root = parseHtml(html`
             <aside class="at-side-panel" aria-hidden="true">
                 <div class="cmp-close"></div>
@@ -343,6 +345,11 @@ export class PlaygroundSidePanel implements Mountable {
             this.section('Display ▸ Colors', [
                 this.noteColorRow(),
                 this.barCursorColorRow(),
+                this.rangeRow('Bar Cursor Opacity', 0, 1, 0.05, this.barCursorOpacity, value => {
+                    this.barCursorOpacity = value;
+                    localStorage.setItem('at-playground-bar-cursor-opacity', String(this.barCursorOpacity));
+                    this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity);
+                }, value => `${Math.round(value * 100)}%`),
                 this.colorRow('Staff Line', 'display.resources.staffLineColor'),
                 this.colorRow('Bar Separator', 'display.resources.barSeparatorColor'),
                 this.colorRow('Bar Number', 'display.resources.barNumberColor'),
@@ -806,13 +813,13 @@ export class PlaygroundSidePanel implements Mountable {
         input.addEventListener('change', () => {
             this.barCursorColor = input.value;
             localStorage.setItem('at-playground-bar-cursor-color', this.barCursorColor);
-            this.updateCursorStyles(this.barCursorColor);
+            this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity);
         });
         control.appendChild(input);
         return row;
     }
 
-    private updateCursorStyles(color: string): void {
+    private updateCursorStyles(color: string, opacity: number): void {
         if (!this.cursorStyleEl) {
             this.cursorStyleEl = document.createElement('style');
             this.cursorStyleEl.id = 'at-custom-cursor-styles';
@@ -821,6 +828,7 @@ export class PlaygroundSidePanel implements Mountable {
         this.cursorStyleEl.textContent = `
             .at-cursor-bar {
                 background: ${color} !important;
+                opacity: ${opacity} !important;
             }
         `;
     }
