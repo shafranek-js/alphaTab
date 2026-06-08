@@ -338,6 +338,7 @@ export class PracticePanel implements Mountable {
         }
         return `${state.inputs.length} input${state.inputs.length === 1 ? '' : 's'} connected`;
     }
+
 }
 
 function formatExpectedNotes(item: PracticeQueueItem<alphaTab.model.Beat>): string {

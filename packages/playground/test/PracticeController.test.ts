@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PracticeSession, buildPracticeQueue, type PracticeBeatSource } from '../src/components/practice/PracticeController';
+import { PracticeSession, buildPracticeQueue, type PracticeBeatSource, findBestPianoTransposeIntervals } from '../src/components/practice/PracticeController';
 
 describe('PracticeController', () => {
     it('builds a queue from playable beats and skips rests', () => {
@@ -54,6 +54,40 @@ describe('PracticeController', () => {
         expect(wrong.type).toBe('wrong');
         expect(wrong.state.currentIndex).toBe(0);
         expect(wrong.state.matchedNotes).toEqual([]);
+    });
+
+    describe('findBestPianoTransposeIntervals', () => {
+        it('returns empty list for empty notes', () => {
+            expect(findBestPianoTransposeIntervals([])).toEqual([]);
+        });
+
+        it('transposes E-minor melody with F# to A-minor (+5 or -7 semitones)', () => {
+            // Natural E-minor scale: E (64), F# (66), G (67), A (69), B (71), C (72), D (74)
+            // It has 1 black key (F#)
+            const melody = [64, 66, 67, 69, 71, 72, 74];
+            const result = findBestPianoTransposeIntervals(melody);
+            // +5 semitones -> A-minor natural scale (all white keys -> 0 black keys)
+            // -7 semitones -> A-minor natural scale (all white keys -> 0 black keys)
+            expect(result).toContain(5);
+            expect(result).toContain(-7);
+            // The first element should be the closest to 0 (which is +5 or -7, let's verify sorting order)
+            expect(Math.abs(result[0])).toBe(5);
+        });
+
+        it('respects piano key bounds [21, 108]', () => {
+            // Notes near the top: 106, 107
+            // Shifting them up by +5 would exceed 108, so they should be filtered out or penalize unplayable count
+            const melody = [106, 107];
+            const result = findBestPianoTransposeIntervals(melody);
+            // Verify that we do not get intervals that make notes unplayable if playable ones exist
+            for (const interval of result) {
+                for (const note of melody) {
+                    const transposed = note + interval;
+                    expect(transposed).toBeGreaterThanOrEqual(21);
+                    expect(transposed).toBeLessThanOrEqual(108);
+                }
+            }
+        });
     });
 });
 

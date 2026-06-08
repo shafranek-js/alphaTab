@@ -1,5 +1,6 @@
 import {
     ArrowDownNarrowWide,
+    ArrowUpDown,
     BarChart3,
     ChevronDown,
     ChevronRight,
@@ -76,6 +77,7 @@ export const Icons = {
     Loop: Repeat as IconNode,
     CountIn: Hourglass as IconNode,
     Metronome: Metronome as IconNode,
+    Transpose: ArrowUpDown as IconNode,
     Search: Search as IconNode,
     OpenFile: FolderOpen as IconNode,
     Print: Printer as IconNode,

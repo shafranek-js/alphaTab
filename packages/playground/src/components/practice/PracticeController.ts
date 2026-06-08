@@ -203,3 +203,67 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
 function uniqueNotes(notes: number[]): number[] {
     return Array.from(new Set(notes)).sort((a, b) => a - b);
 }
+
+export const findBestPianoTransposeIntervals = (
+    midiNumbers: number[]
+): number[] => {
+    // Оставляем только уникальные ноты мелодии
+    const uniqueMidi = Array.from(new Set(midiNumbers));
+    if (uniqueMidi.length === 0) return [];
+
+    // Диапазон стандартного пианино (88 клавиш)
+    const PIANO_MIN_MIDI = 21; // A0
+    const PIANO_MAX_MIDI = 108; // C8
+    
+    // Индексы черных клавиш в октаве (До=0, До-диез=1, Ре=2, Ре-диез=3...)
+    const BLACK_KEYS = new Set([1, 3, 6, 8, 10]);
+
+    const results: {
+        interval: number;
+        unplayableCount: number; // Ноты за пределами клавиатуры
+        blackKeyCount: number;   // Диезы и бемоли
+    }[] = [];
+    
+    let minUnplayableCount = Number.POSITIVE_INFINITY;
+
+    // Ищем в диапазоне 3 октав (от -36 до +36), чтобы дать музыканту
+    // возможность выбрать удобную октаву
+    for (let interval = -36; interval <= 36; interval += 1) {
+        let unplayableCount = 0;
+        let blackKeyCount = 0;
+
+        for (const midi of uniqueMidi) {
+            const transposedMidi = midi + interval;
+
+            // 1. Проверяем, не выпала ли нота за пределы пианино
+            if (transposedMidi < PIANO_MIN_MIDI || transposedMidi > PIANO_MAX_MIDI) {
+                unplayableCount += 1;
+                continue; // Если нота вообще не влезает, дальше не считаем
+            }
+
+            // 2. Проверяем, черная ли это клавиша (с корректной обработкой отрицательного остатка)
+            const pitchClass = ((transposedMidi % 12) + 12) % 12;
+            if (BLACK_KEYS.has(pitchClass)) {
+                blackKeyCount += 1;
+            }
+        }
+
+        results.push({ interval, unplayableCount, blackKeyCount });
+        if (unplayableCount < minUnplayableCount) {
+            minUnplayableCount = unplayableCount;
+        }
+    }
+
+    // Фильтруем результаты, оставляя те, что максимально влезают в клавиатуру
+    const playableResults = results.filter(r => r.unplayableCount === minUnplayableCount);
+    if (playableResults.length === 0) return [];
+    
+    // Среди них находим минимальное количество черных клавиш
+    const minBlackKeyCount = Math.min(...playableResults.map(r => r.blackKeyCount));
+
+    // Возвращаем идеальные интервалы сдвига (сортируя от ближайшего к 0)
+    return playableResults
+        .filter(r => r.blackKeyCount === minBlackKeyCount)
+        .map(r => r.interval)
+        .sort((a, b) => Math.abs(a) - Math.abs(b));
+};

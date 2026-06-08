@@ -5,6 +5,7 @@ import { loadScoreFile } from './DragDrop';
 import type { PlaygroundSidePanelMode } from './PlaygroundSidePanel';
 import { IconButton } from './primitives/IconButton';
 import { LoadingProgress } from './primitives/LoadingProgress';
+import { findBestPianoTransposeIntervals } from './practice/PracticeController';
 
 export type PlaygroundBottomPanelMode = 'media-sync' | 'practice' | null;
 
@@ -200,6 +201,50 @@ injectStyles(
             font-size: 12px;
         }
     }
+
+    .at-transpose-control {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .at-transpose-btn {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: #fff;
+        border-radius: 4px;
+        width: 20px;
+        height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 10px;
+        padding: 0;
+        line-height: 1;
+        transition: background-color 0.1s;
+    }
+    .at-transpose-btn:hover:not([disabled]) {
+        background: rgba(255, 255, 255, 0.15);
+    }
+    .at-transpose-btn[disabled] {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+    .at-transpose-value {
+        font-weight: 700;
+        min-width: 1.8rem;
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+    }
+    .at-transpose-value:hover {
+        text-decoration: underline;
+    }
+    .at-transpose-options-count {
+        font-size: 11px;
+        opacity: 0.7;
+        margin-left: 2px;
+    }
 `
 );
 
@@ -229,6 +274,12 @@ export class TransportBar implements Mountable {
     private subscriptions: (() => void)[] = [];
     private previousTime = -1;
     private flashTimeoutId = 0;
+    private transposeIntervals: number[] = [];
+    private currentTransposeIndex = -1;
+    private transposeValEl!: HTMLElement;
+    private transposeOptionsCountEl!: HTMLElement;
+    private transposeDownBtn!: HTMLButtonElement;
+    private transposeUpBtn!: HTMLButtonElement;
 
     constructor(
         api: alphaTab.AlphaTabApi,
@@ -270,6 +321,13 @@ export class TransportBar implements Mountable {
                         <input class="at-playback-speed" type="range" min="0.1" max="3" step="0.1" value="1" />
                         <span class="at-playback-speed-value">1.0x</span>
                     </div>
+                    <div class="at-control-item at-transpose-control" title="Transpose (Piano Optimize)">
+                        <span class="at-icon at-transpose-icon"></span>
+                        <button type="button" class="at-transpose-btn at-transpose-down" aria-label="Transpose Down" disabled>▼</button>
+                        <span class="at-transpose-value">0</span>
+                        <button type="button" class="at-transpose-btn at-transpose-up" aria-label="Transpose Up" disabled>▲</button>
+                        <span class="at-transpose-options-count">(-)</span>
+                    </div>
                     <div class="cmp-looping"></div>
                 </div>
 
@@ -289,6 +347,16 @@ export class TransportBar implements Mountable {
         this.root.querySelector('.at-metronome-icon')!.replaceChildren(icon(Icons.Metronome));
         this.root.querySelector('.at-count-in-icon')!.replaceChildren(icon(Icons.Volume));
         this.root.querySelector('.at-speed-icon')!.replaceChildren(icon(Icons.CountIn));
+        this.root.querySelector('.at-transpose-icon')!.replaceChildren(icon(Icons.Transpose));
+ 
+        this.transposeValEl = this.root.querySelector('.at-transpose-value')!;
+        this.transposeOptionsCountEl = this.root.querySelector('.at-transpose-options-count')!;
+        this.transposeDownBtn = this.root.querySelector('.at-transpose-down')!;
+        this.transposeUpBtn = this.root.querySelector('.at-transpose-up')!;
+ 
+        this.transposeDownBtn.addEventListener('click', () => this.changeTranspose(api, -1));
+        this.transposeUpBtn.addEventListener('click', () => this.changeTranspose(api, 1));
+        this.transposeValEl.addEventListener('click', () => this.resetTranspose(api));
 
         const fileInput = this.root.querySelector<HTMLInputElement>('.at-file-input')!;
         fileInput.addEventListener('change', () => {
@@ -464,6 +532,22 @@ export class TransportBar implements Mountable {
             api.playerReady.on(() => {
                 this.playPause.setEnabled(true);
                 this.stop.setEnabled(true);
+                this.transposeDownBtn.removeAttribute('disabled');
+                this.transposeUpBtn.removeAttribute('disabled');
+            })
+        );
+        this.subscriptions.push(
+            api.scoreLoaded.on(() => {
+                this.transposeIntervals = [];
+                this.currentTransposeIndex = -1;
+                this.calculateTransposeOptions(api);
+                this.updateTransposeUI(api);
+            })
+        );
+        this.subscriptions.push(
+            api.renderFinished.on(() => {
+                this.calculateTransposeOptions(api);
+                this.updateTransposeUI(api);
             })
         );
     }
@@ -539,6 +623,84 @@ export class TransportBar implements Mountable {
                 input.classList.remove('flash');
             }, flashDuration);
         }
+    }
+
+    private calculateTransposeOptions(api: alphaTab.AlphaTabApi): void {
+        if (!api.tracks || api.tracks.length === 0) {
+            this.transposeIntervals = [];
+            this.currentTransposeIndex = -1;
+            return;
+        }
+
+        const beats: alphaTab.model.Beat[] = [];
+        for (const track of api.tracks) {
+            for (const staff of track.staves) {
+                for (const bar of staff.bars) {
+                    for (const voice of bar.voices) {
+                        beats.push(...voice.beats);
+                    }
+                }
+            }
+        }
+        
+        const uniqueMidi = new Set<number>();
+        for (const beat of beats) {
+            if (beat.isRest) continue;
+            for (const note of beat.notes) {
+                if (note.realValue > 0) {
+                    uniqueMidi.add(note.realValue);
+                }
+            }
+        }
+
+        const currentInterval = api.settings.notation.transpositionPitches[0] || 0;
+        const originalMidiNumbers = Array.from(uniqueMidi).map(n => n - currentInterval);
+        this.transposeIntervals = findBestPianoTransposeIntervals(originalMidiNumbers);
+        this.currentTransposeIndex = this.transposeIntervals.indexOf(currentInterval);
+    }
+
+    private updateTransposeUI(api: alphaTab.AlphaTabApi): void {
+        const currentInterval = api.settings.notation.transpositionPitches[0] || 0;
+        this.transposeValEl.textContent = `${currentInterval > 0 ? '+' : ''}${currentInterval}`;
+
+        if (this.transposeIntervals.length > 0) {
+            const displayIndex = this.currentTransposeIndex >= 0 ? `${this.currentTransposeIndex + 1}/${this.transposeIntervals.length}` : `-/${this.transposeIntervals.length}`;
+            this.transposeOptionsCountEl.textContent = `(${displayIndex})`;
+        } else {
+            this.transposeOptionsCountEl.textContent = `(-)`;
+        }
+    }
+
+    private changeTranspose(api: alphaTab.AlphaTabApi, direction: number): void {
+        if (this.transposeIntervals.length === 0) {
+            this.calculateTransposeOptions(api);
+        }
+
+        if (this.transposeIntervals.length > 0) {
+            if (direction > 0) {
+                this.currentTransposeIndex = (this.currentTransposeIndex + 1) % this.transposeIntervals.length;
+            } else {
+                this.currentTransposeIndex = this.currentTransposeIndex - 1;
+                if (this.currentTransposeIndex < 0) {
+                    this.currentTransposeIndex = this.transposeIntervals.length - 1;
+                }
+            }
+
+            const interval = this.transposeIntervals[this.currentTransposeIndex];
+            this.applyTranspose(api, interval);
+        }
+    }
+
+    private resetTranspose(api: alphaTab.AlphaTabApi): void {
+        this.applyTranspose(api, 0);
+        this.currentTransposeIndex = this.transposeIntervals.indexOf(0);
+    }
+
+    private applyTranspose(api: alphaTab.AlphaTabApi, interval: number): void {
+        const transpositionPitches = api.tracks.map(() => interval);
+        api.settings.notation.transpositionPitches = transpositionPitches;
+        api.updateSettings();
+        api.render();
     }
 
     dispose(): void {
