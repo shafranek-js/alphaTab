@@ -406,6 +406,12 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         // Play all matching regions.
         const voicePlayIndex: number = this._voicePlayIndex++;
         for (const region of this.presets[presetIndex].regions!) {
+            // Skip regions with no audio data (unsupported/skipped samples such as right stereo channel or ROM samples).
+            // Without this check, those regions would create zombie voices that loop silently forever,
+            // exhausting all voice slots and causing complete silence.
+            if (region.samples.length === 0) {
+                continue;
+            }
             if (
                 key < region.loKey ||
                 key > region.hiKey ||
@@ -1085,7 +1091,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
      */
     public channelGetPan(channel: number): number {
         return this._channels && channel < this._channels.channelList.length
-            ? this._channels.channelList[channel].panOffset - 0.5
+            ? this._channels.channelList[channel].panOffset + 0.5
             : 0.5;
     }
 
@@ -1363,6 +1369,10 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                                             ? 0.0
                                             : SynthHelper.timecents2Secs(zoneRegion.delayVibLFO);
 
+                                    // Reset region panning to 0 to ensure the track balance/pan controls
+                                    // work correctly and centered by default, preventing unexpected panning.
+                                    zoneRegion.pan = 0;
+
                                     // Pin values to their ranges.
                                     if (zoneRegion.pan < -0.5) {
                                         zoneRegion.pan = -0.5;
@@ -1450,11 +1460,46 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                                         // play whole sample
                                         zoneRegion.offset = 0;
                                         zoneRegion.end = zoneRegion.samples.length - 1;
+                                    } else if ((shdr.sampleType & 0x7fff) === 0x04 || (shdr.sampleType & 0x7fff) === 0x14) {
+                                        // Left stereo sample (SF2: 0x04, SF3 Vorbis: 0x14).
+                                        // The synthesizer is mono, so we down-mix by treating the left channel as mono.
+                                        Logger.debug(
+                                            'AlphaSynth',
+                                            `Loading left stereo sample ${shdr.sampleName} as mono for preset ${phdr.presetName} (bank ${preset.bank} program ${preset.presetNumber})`
+                                        );
+                                        zoneRegion.pan = 0;
+
+                                        const decompressVorbisL = (shdr.sampleType & 0x10) !== 0;
+                                        if (decompressVorbisL) {
+                                            zoneRegion.samples = hydra.decodeSamples(shdr.start, shdr.end, true);
+                                        } else {
+                                            zoneRegion.samples = hydra.decodeSamples(
+                                                zoneRegion.offset * 2,
+                                                zoneRegion.end * 2,
+                                                false
+                                            );
+
+                                            if (zoneRegion.loopStart > 0) {
+                                                zoneRegion.loopStart -= zoneRegion.offset;
+                                            }
+                                            if (zoneRegion.loopEnd > 0) {
+                                                zoneRegion.loopEnd -= zoneRegion.offset;
+                                            }
+                                        }
+
+                                        zoneRegion.offset = 0;
+                                        zoneRegion.end = zoneRegion.samples.length - 1;
+                                    } else if ((shdr.sampleType & 0x7fff) === 0x02 || (shdr.sampleType & 0x7fff) === 0x12) {
+                                        // Right stereo sample (SF2: 0x02, SF3 Vorbis: 0x12).
+                                        // The left channel of the same stereo pair is already loaded and played as mono,
+                                        // so the right channel is intentionally skipped to avoid doubling volume.
+                                        Logger.debug(
+                                            'AlphaSynth',
+                                            `Skipping right stereo sample ${shdr.sampleName} for preset ${phdr.presetName} (bank ${preset.bank} program ${preset.presetNumber}) — left channel used as mono`
+                                        );
+                                        zoneRegion.samples = new Float32Array(0);
                                     } else {
-                                        // unsupported
-                                        //  0x02: // Right Sample
-                                        //  0x04: // Left Sample
-                                        //  0x08: // Linked Sample
+                                        // Truly unsupported types: ROM samples
                                         //  0x8001: // RomMonoSample
                                         //  0x8002: // RomRightSample
                                         //  0x8004: // RomLeftSample

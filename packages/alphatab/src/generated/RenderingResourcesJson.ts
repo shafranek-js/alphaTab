@@ -127,4 +127,16 @@ export interface RenderingResourcesJson {
      * @since 0.9.6
      */
     scoreInfoColor?: ColorJson;
+    /**
+     * The font to use for rendering the watermark text at the bottom.
+     * @defaultValue `bold 13px Arial, sans-serif`
+     * @since 1.9.0
+     */
+    watermarkFont?: FontJson;
+    /**
+     * The color to use for rendering the watermark text.
+     * @defaultValue `rgb(0, 0, 0)`
+     * @since 1.9.0
+     */
+    watermarkColor?: ColorJson;
 }

@@ -1,6 +1,6 @@
 import * as alphaTab from '@coderline/alphatab';
 import { type Mountable, css, html, injectStyles, mount, parseHtml } from '../util/Dom';
-import { FontAwesomeIcons, Icons } from '../util/Icons';
+import { FontAwesomeIcons, Icons, icon } from '../util/Icons';
 import { loadScoreFile } from './DragDrop';
 import type { PlaygroundSidePanelMode } from './PlaygroundSidePanel';
 import { IconButton } from './primitives/IconButton';
@@ -24,6 +24,61 @@ injectStyles(
         display: flex;
         align-items: center;
         min-width: 0;
+    }
+    .at-transport-center {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+        flex: 1 1 auto;
+        padding: 0 1rem;
+    }
+    .at-transport-center .at-control-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+    .at-transport-center .at-control-item .at-icon {
+        display: flex;
+        align-items: center;
+    }
+    .at-transport-center .at-control-item .at-icon > svg {
+        width: 1rem;
+        height: 1rem;
+        fill: currentColor;
+    }
+    .at-transport-center .at-control-item span:last-child {
+        font-weight: 700;
+        min-width: 2.2rem;
+        text-align: right;
+    }
+    .at-transport-center .at-control-item input[type="range"] {
+        width: 5rem;
+        cursor: pointer;
+        height: 4px;
+        accent-color: #fff;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        outline: none;
+        -webkit-appearance: none;
+    }
+    .at-transport-center .at-control-item input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #fff;
+        cursor: pointer;
+    }
+    .at-transport-center .at-control-item input[type="range"]::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+        border: 0;
+        border-radius: 50%;
+        background: #fff;
+        cursor: pointer;
     }
     .at-transport-left > *,
     .at-transport-right > * {
@@ -150,6 +205,7 @@ export class TransportBar implements Mountable {
     private practice: IconButton;
     private tracks: IconButton;
     private settings: IconButton;
+    private looping: IconButton;
     private loadingProgress: LoadingProgress;
     private loadingSlot: HTMLElement;
     private titleEl: HTMLElement;
@@ -182,6 +238,26 @@ export class TransportBar implements Mountable {
                     </div>
                     <div class="at-time-position">00:00 / 00:00</div>
                 </div>
+
+                <div class="at-transport-center">
+                    <div class="at-control-item" title="Metronome Volume">
+                        <span class="at-icon at-metronome-icon"></span>
+                        <input class="at-metronome-volume" type="range" min="0" max="1" step="0.1" value="0" />
+                        <span class="at-metronome-volume-value">0%</span>
+                    </div>
+                    <div class="at-control-item" title="Count-In Volume">
+                        <span class="at-icon at-count-in-icon"></span>
+                        <input class="at-count-in-volume" type="range" min="0" max="1" step="0.1" value="0" />
+                        <span class="at-count-in-volume-value">0%</span>
+                    </div>
+                    <div class="at-control-item" title="Playback Speed">
+                        <span class="at-icon at-speed-icon"></span>
+                        <input class="at-playback-speed" type="range" min="0.1" max="3" step="0.1" value="1" />
+                        <span class="at-playback-speed-value">1.0x</span>
+                    </div>
+                    <div class="cmp-looping"></div>
+                </div>
+
                 <div class="at-transport-right">
                     <div class="cmp-media-sync"></div>
                     <div class="cmp-practice"></div>
@@ -194,6 +270,10 @@ export class TransportBar implements Mountable {
         this.artistEl = this.root.querySelector('.at-song-artist')!;
         this.timePositionEl = this.root.querySelector('.at-time-position')!;
         this.loadingSlot = this.root.querySelector('.at-loading-slot')!;
+
+        this.root.querySelector('.at-metronome-icon')!.replaceChildren(icon(Icons.Metronome));
+        this.root.querySelector('.at-count-in-icon')!.replaceChildren(icon(Icons.Volume));
+        this.root.querySelector('.at-speed-icon')!.replaceChildren(icon(Icons.CountIn));
 
         const fileInput = this.root.querySelector<HTMLInputElement>('.at-file-input')!;
         fileInput.addEventListener('change', () => {
@@ -268,6 +348,50 @@ export class TransportBar implements Mountable {
 
         this.refreshActiveButtons();
 
+        this.looping = mount(
+            this.root,
+            '.cmp-looping',
+            new IconButton({ icon: Icons.Loop, tooltip: 'Looping', ariaLabel: 'Looping' })
+        );
+        this.looping.onClick = () => {
+            const next = !api.isLooping;
+            api.isLooping = next;
+            this.looping.root.classList.toggle('active', next);
+        };
+
+        const metronomeInput = this.root.querySelector<HTMLInputElement>('.at-metronome-volume')!;
+        metronomeInput.addEventListener('input', () => {
+            const val = metronomeInput.valueAsNumber;
+            api.metronomeVolume = val;
+            const label = this.root.querySelector('.at-metronome-volume-value')!;
+            label.textContent = `${(val * 100).toFixed(0)}%`;
+        });
+
+        const countInInput = this.root.querySelector<HTMLInputElement>('.at-count-in-volume')!;
+        countInInput.addEventListener('input', () => {
+            const val = countInInput.valueAsNumber;
+            api.countInVolume = val;
+            const label = this.root.querySelector('.at-count-in-volume-value')!;
+            label.textContent = `${(val * 100).toFixed(0)}%`;
+        });
+
+        const speedInput = this.root.querySelector<HTMLInputElement>('.at-playback-speed')!;
+        speedInput.addEventListener('input', () => {
+            const val = speedInput.valueAsNumber;
+            api.playbackSpeed = val;
+            const label = this.root.querySelector('.at-playback-speed-value')!;
+            label.textContent = `${val.toFixed(1)}x`;
+        });
+
+        this.subscriptions.push(
+            api.scoreLoaded.on(() => this.syncControls(api))
+        );
+        this.subscriptions.push(
+            api.playerPositionChanged.on(() => {
+                this.syncControls(api);
+            })
+        );
+
         this.subscriptions.push(
             api.scoreLoaded.on(score => {
                 this.titleEl.textContent = score.title || 'Untitled';
@@ -331,6 +455,38 @@ export class TransportBar implements Mountable {
         button.root.classList.toggle('active', active);
         button.root.style.backgroundColor = active ? 'var(--at-accent-hover)' : '';
         button.root.style.color = active ? '#fff' : '';
+    }
+
+    private syncControls(api: alphaTab.AlphaTabApi): void {
+        const metronomeVal = api.metronomeVolume;
+        const countInVal = api.countInVolume;
+        const speedVal = api.playbackSpeed;
+        const loopVal = api.isLooping;
+
+        const metronomeInput = this.root.querySelector<HTMLInputElement>('.at-metronome-volume');
+        if (metronomeInput && metronomeInput.valueAsNumber !== metronomeVal) {
+            metronomeInput.value = String(metronomeVal);
+            const label = this.root.querySelector('.at-metronome-volume-value');
+            if (label) label.textContent = `${(metronomeVal * 100).toFixed(0)}%`;
+        }
+
+        const countInInput = this.root.querySelector<HTMLInputElement>('.at-count-in-volume');
+        if (countInInput && countInInput.valueAsNumber !== countInVal) {
+            countInInput.value = String(countInVal);
+            const label = this.root.querySelector('.at-count-in-volume-value');
+            if (label) label.textContent = `${(countInVal * 100).toFixed(0)}%`;
+        }
+
+        const speedInput = this.root.querySelector<HTMLInputElement>('.at-playback-speed');
+        if (speedInput && speedInput.valueAsNumber !== speedVal) {
+            speedInput.value = String(speedVal);
+            const label = this.root.querySelector('.at-playback-speed-value');
+            if (label) label.textContent = `${speedVal.toFixed(1)}x`;
+        }
+
+        if (this.looping) {
+            this.looping.root.classList.toggle('active', loopVal);
+        }
     }
 
     dispose(): void {

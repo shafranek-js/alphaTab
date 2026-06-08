@@ -185,7 +185,7 @@ export class TrackItem implements Mountable {
                  <div class="settings-item">
                     <div class="settings-item-label" title="Fully transposes the track (audio and notation)">Transpose Full</div>
                     <div class="settings-item-control">
-                        <input class="track-transpose-full" type="range" min="-12" max="12" step="1" value="0" />
+                        <input class="track-transpose-full" type="range" min="-24" max="12" step="1" value="0" />
                     </div>
                 </div>
                 <div class="settings-item">
@@ -197,7 +197,7 @@ export class TrackItem implements Mountable {
                 <div class="settings-item">
                     <div class="settings-item-label" title="Transposes the audio playback of the track">Transpose Audio</div>
                     <div class="settings-item-control">
-                        <input class="track-transpose-audio" type="range" min="-12" max="12" step="1" value="0" />
+                        <input class="track-transpose-audio" type="range" min="-24" max="12" step="1" value="0" />
                     </div>
                 </div>
                 <div class="track-staves"></div>

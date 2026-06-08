@@ -47,8 +47,24 @@ export class TrackList implements Mountable {
                         track.playbackInfo.balance = savedTrack.balance;
                     }
                     track.playbackInfo.isMute = savedTrack.isMute;
-                    track.playbackInfo.isSolo = savedTrack.isSolo;
                     track.playbackInfo.program = savedTrack.program;
+
+                    // Synchronize beat automations for instrument and balance changes
+                    for (const staff of track.staves) {
+                        for (const bar of staff.bars) {
+                            for (const voice of bar.voices) {
+                                for (const beat of voice.beats) {
+                                    for (const automation of beat.automations) {
+                                        if (automation.type === 2) { // AutomationType.Instrument
+                                            automation.value = savedTrack.program;
+                                        } else if (automation.type === 3 && savedTrack.balance !== undefined) { // AutomationType.Balance
+                                            automation.value = savedTrack.balance;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if (savedTrack.transpositionPitch !== undefined) {
                         this.api.changeTrackTranspositionPitch([track], savedTrack.transpositionPitch);
                     }
@@ -77,6 +93,10 @@ export class TrackList implements Mountable {
 
         if (settingsChanged) {
             this.api.updateSettings();
+        }
+
+        if (savedSettings && savedSettings.tracks) {
+            this.api.loadMidiForScore();
         }
 
         if (savedSettings && savedSettings.activeTracks && savedSettings.activeTracks.length > 0) {

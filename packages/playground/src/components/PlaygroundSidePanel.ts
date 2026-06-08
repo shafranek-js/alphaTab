@@ -114,6 +114,16 @@ injectStyles(
         color: var(--at-text);
         font: inherit;
     }
+    .at-settings-control > input[type='color'] {
+        width: 128px;
+        min-height: 32px;
+        height: 32px;
+        padding: 2px;
+        border: 1px solid var(--at-border);
+        border-radius: 4px;
+        background: var(--at-bg);
+        cursor: pointer;
+    }
     .at-settings-control > output {
         min-width: 42px;
         text-align: right;
@@ -206,6 +216,8 @@ export class PlaygroundSidePanel implements Mountable {
     private barCursorOpacity: number = 0.25;
     private barCursorPosition: 'above' | 'below' = 'above';
     private cursorStyleEl?: HTMLStyleElement;
+    private lightThemeBgColor: string = '#ffffff';
+    private darkThemeBgColor: string = '#0f172a';
 
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
 
@@ -224,6 +236,7 @@ export class PlaygroundSidePanel implements Mountable {
         } else if (savedTheme === 'light') {
             document.documentElement.classList.remove('dark-theme');
         }
+        this.applyBackgroundColors();
 
         this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
         this.root = parseHtml(html`
@@ -371,6 +384,8 @@ export class PlaygroundSidePanel implements Mountable {
             this.section('Display ▸ Colors', [
                 this.noteColorRow(),
                 this.barCursorColorRow(),
+                this.backgroundColorRow('Light Theme Background', 'light'),
+                this.backgroundColorRow('Dark Theme Background', 'dark'),
                 this.rangeRow('Bar Cursor Opacity', 0, 1, 0.05, this.barCursorOpacity, value => {
                     this.barCursorOpacity = value;
                     this.saveUserSetting('custom', 'barCursorOpacity', value);
@@ -517,6 +532,7 @@ export class PlaygroundSidePanel implements Mountable {
                 }
                 const isDark = button.dataset.theme === 'dark';
                 document.documentElement.classList.toggle('dark-theme', isDark);
+                this.applyBackgroundColors();
 
                 // Update alphaTab rendering colors to match the theme
                 this.applyThemeToScore(isDark);
@@ -655,22 +671,86 @@ export class PlaygroundSidePanel implements Mountable {
     }
 
     private colorRow(label: string, path: string): HTMLElement {
-        const value = this.getPath(this.api.settings, path);
+        const value = this.getPath(this.api.settings, path) as alphaTab.model.Color | null;
         const row = this.row(label);
         const control = row.querySelector('.at-settings-control')!;
+        const hex = this.colorToHex(value);
         const input = parseHtml(html`
-            <input type="text" value="${value?.rgba ?? String(value ?? '')}" />
+            <input type="color" value="${hex}" />
         `) as HTMLInputElement;
         input.addEventListener('change', () => {
-            const parsed = this.parseColor(input.value);
-            if (parsed) {
-                this.setPath(this.api.settings, path, parsed);
-                this.saveUserSetting('settings', path, parsed);
-                this.render();
-            }
+            const currentAlpha = value ? value.a : 255;
+            const parsed = this.hexToColor(input.value, currentAlpha);
+            this.setPath(this.api.settings, path, parsed);
+            this.saveUserSetting('settings', path, parsed);
+            this.render();
         });
         control.appendChild(input);
         return row;
+    }
+
+    private backgroundColorRow(label: string, theme: 'light' | 'dark'): HTMLElement {
+        const row = this.row(label);
+        const control = row.querySelector('.at-settings-control')!;
+        const value = theme === 'light' ? this.lightThemeBgColor : this.darkThemeBgColor;
+        const input = parseHtml(html`
+            <input type="color" value="${value}" />
+        `) as HTMLInputElement;
+        input.addEventListener('change', () => {
+            if (theme === 'light') {
+                this.lightThemeBgColor = input.value;
+                this.saveUserSetting('custom', 'lightThemeBgColor', this.lightThemeBgColor);
+            } else {
+                this.darkThemeBgColor = input.value;
+                this.saveUserSetting('custom', 'darkThemeBgColor', this.darkThemeBgColor);
+            }
+            this.applyBackgroundColors();
+        });
+        control.appendChild(input);
+        return row;
+    }
+
+    private applyBackgroundColors(): void {
+        const isDark = document.documentElement.classList.contains('dark-theme');
+        const color = isDark ? this.darkThemeBgColor : this.lightThemeBgColor;
+        document.documentElement.style.setProperty('--at-bg', color);
+    }
+
+    private colorToHex(color: alphaTab.model.Color | null | undefined): string {
+        if (!color) {
+            return '#000000';
+        }
+        const r = color.r.toString(16).padStart(2, '0');
+        const g = color.g.toString(16).padStart(2, '0');
+        const b = color.b.toString(16).padStart(2, '0');
+        return `#${r}${g}${b}`;
+    }
+
+    private hexToColor(hex: string, alpha = 255): alphaTab.model.Color {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return new alphaTab.model.Color(r, g, b, alpha);
+    }
+
+    private cssColorToHex(colorStr: string): string {
+        if (colorStr.startsWith('#')) {
+            return colorStr;
+        }
+        if (colorStr.startsWith('rgb')) {
+            const matches = colorStr.match(/\d+/g);
+            if (matches && matches.length >= 3) {
+                const r = Number(matches[0]).toString(16).padStart(2, '0');
+                const g = Number(matches[1]).toString(16).padStart(2, '0');
+                const b = Number(matches[2]).toString(16).padStart(2, '0');
+                return `#${r}${g}${b}`;
+            }
+        }
+        if (colorStr === 'yellow') return '#ffff00';
+        if (colorStr === 'red') return '#ff0000';
+        if (colorStr === 'blue') return '#0000ff';
+        if (colorStr === 'green') return '#008000';
+        return '#fff200';
     }
 
     private fontRow(label: string, path: string): HTMLElement {
@@ -887,24 +967,14 @@ export class PlaygroundSidePanel implements Mountable {
         return items;
     }
 
-    private parseColor(value: string): alphaTab.model.Color | null {
-        const match = value.trim().match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)$/i);
-        if (!match) {
-            return null;
-        }
-        return new alphaTab.model.Color(
-            Number(match[1]),
-            Number(match[2]),
-            Number(match[3]),
-            match[4] ? Number(match[4]) * 255 : 255
-        );
-    }
+
 
     private barCursorColorRow(): HTMLElement {
         const row = this.row('Bar Cursor Color');
         const control = row.querySelector('.at-settings-control')!;
+        const hex = this.cssColorToHex(this.barCursorColor);
         const input = parseHtml(html`
-            <input type="text" value="${this.barCursorColor}" />
+            <input type="color" value="${hex}" />
         `) as HTMLInputElement;
         input.addEventListener('change', () => {
             this.barCursorColor = input.value;
@@ -1020,6 +1090,13 @@ export class PlaygroundSidePanel implements Mountable {
                         this.api.settings.notation.elements.set(elemId, val);
                     }
                 }
+                if (data.custom.lightThemeBgColor) {
+                    this.lightThemeBgColor = data.custom.lightThemeBgColor;
+                }
+                if (data.custom.darkThemeBgColor) {
+                    this.darkThemeBgColor = data.custom.darkThemeBgColor;
+                }
+                this.applyBackgroundColors();
             }
 
             this.api.updateSettings();
@@ -1115,7 +1192,9 @@ export class PlaygroundSidePanel implements Mountable {
                     barCursorColor: this.barCursorColor,
                     barCursorOpacity: this.barCursorOpacity,
                     barCursorPosition: this.barCursorPosition,
-                    notationElements
+                    notationElements,
+                    lightThemeBgColor: this.lightThemeBgColor,
+                    darkThemeBgColor: this.darkThemeBgColor
                 }
             };
 

@@ -84,6 +84,7 @@ export default function server(): Plugin {
             const log: Logger = devServer.config.logger;
 
             devServer.middlewares.use('/font', serveStatic(path.join(__dirname, '..', 'alphatab', 'font')));
+            devServer.middlewares.use('/soundfont', serveStatic(path.join(__dirname, '..', '..', 'soundfont')));
             devServer.middlewares.use('/test-data', serveStatic(testDataPath));
 
             devServer.middlewares.use('/test-results/list', (_req, res) => {
