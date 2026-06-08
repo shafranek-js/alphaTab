@@ -37,6 +37,7 @@ export class TrackList implements Mountable {
             } catch {}
         }
 
+        let settingsChanged = false;
         if (savedSettings && savedSettings.tracks) {
             for (const savedTrack of savedSettings.tracks) {
                 const track = score.tracks.find(t => t.index === savedTrack.index);
@@ -57,6 +58,7 @@ export class TrackList implements Mountable {
                             pitches.push(0);
                         }
                         pitches[track.index] = savedTrack.transposeFull;
+                        settingsChanged = true;
                     }
                     if (savedTrack.staves) {
                         for (const savedStaff of savedTrack.staves) {
@@ -71,6 +73,10 @@ export class TrackList implements Mountable {
                     }
                 }
             }
+        }
+
+        if (settingsChanged) {
+            this.api.updateSettings();
         }
 
         if (savedSettings && savedSettings.activeTracks && savedSettings.activeTracks.length > 0) {
