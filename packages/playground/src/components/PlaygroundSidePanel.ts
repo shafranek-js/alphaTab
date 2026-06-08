@@ -438,7 +438,8 @@ export class PlaygroundSidePanel implements Mountable {
                 this.settingsToggleRow('Small Grace Notes in Tabs', 'notation.smallGraceTabNotes'),
                 this.settingsToggleRow('Extend Bend Arrows on Tied Notes', 'notation.extendBendArrowsOnTiedNotes'),
                 this.settingsToggleRow('Extend Line Effects to Beat End', 'notation.extendLineEffectsToBeatEnd'),
-                this.settingsNumberRow('Slur Height', 'notation.slurHeight', 1)
+                this.settingsNumberRow('Slur Height', 'notation.slurHeight', 1),
+                this.notationElementToggleRow('Show Lyrics', alphaTab.NotationElement.EffectLyrics)
             ]),
             this.section('Player', [
                 this.apiRangeRow('Volume', 'masterVolume', 0, 1, 0.1),
@@ -731,6 +732,15 @@ export class PlaygroundSidePanel implements Mountable {
         });
     }
 
+    private notationElementToggleRow(label: string, element: alphaTab.NotationElement): HTMLElement {
+        const initialValue = this.api.settings.notation.isNotationElementVisible(element);
+        return this.toggleRow(label, initialValue, value => {
+            this.api.settings.notation.elements.set(element, value);
+            this.saveAllSettings();
+            this.update(true);
+        });
+    }
+
     private apiRangeRow(label: string, path: string, min: number, max: number, step: number): HTMLElement {
         return this.rangeRow(label, min, max, step, Number((this.api as any)[path] ?? 0), value => {
             (this.api as any)[path] = value;
@@ -1003,6 +1013,13 @@ export class PlaygroundSidePanel implements Mountable {
                 if (data.custom.barCursorPosition) {
                     this.barCursorPosition = data.custom.barCursorPosition as 'above' | 'below';
                 }
+                if (data.custom.notationElements) {
+                    for (const key of Object.keys(data.custom.notationElements)) {
+                        const elemId = Number(key);
+                        const val = data.custom.notationElements[key];
+                        this.api.settings.notation.elements.set(elemId, val);
+                    }
+                }
             }
 
             this.api.updateSettings();
@@ -1083,6 +1100,11 @@ export class PlaygroundSidePanel implements Mountable {
 
     private saveAllSettings(): void {
         try {
+            const notationElements: any = {};
+            for (const [k, v] of this.api.settings.notation.elements.entries()) {
+                notationElements[String(k)] = v;
+            }
+
             const data: any = {
                 settings: {},
                 api: {},
@@ -1092,7 +1114,8 @@ export class PlaygroundSidePanel implements Mountable {
                     noteColorScheme: this.noteColorScheme,
                     barCursorColor: this.barCursorColor,
                     barCursorOpacity: this.barCursorOpacity,
-                    barCursorPosition: this.barCursorPosition
+                    barCursorPosition: this.barCursorPosition,
+                    notationElements
                 }
             };
 
