@@ -655,7 +655,7 @@ export class TransportBar implements Mountable {
 
         const currentInterval = api.settings.notation.transpositionPitches[0] || 0;
         const originalMidiNumbers = Array.from(uniqueMidi).map(n => n - currentInterval);
-        this.transposeIntervals = findBestPianoTransposeIntervals(originalMidiNumbers);
+        this.transposeIntervals = findBestPianoTransposeIntervals(originalMidiNumbers).sort((a, b) => a - b);
         this.currentTransposeIndex = this.transposeIntervals.indexOf(currentInterval);
     }
 
@@ -677,17 +677,31 @@ export class TransportBar implements Mountable {
         }
 
         if (this.transposeIntervals.length > 0) {
+            const currentInterval = api.settings.notation.transpositionPitches[0] || 0;
+            let nextInterval: number;
+
             if (direction > 0) {
-                this.currentTransposeIndex = (this.currentTransposeIndex + 1) % this.transposeIntervals.length;
+                // Find the first option strictly greater than currentInterval
+                const found = this.transposeIntervals.find(opt => opt > currentInterval);
+                if (found !== undefined) {
+                    nextInterval = found;
+                } else {
+                    // Wrap around to the smallest option
+                    nextInterval = this.transposeIntervals[0];
+                }
             } else {
-                this.currentTransposeIndex = this.currentTransposeIndex - 1;
-                if (this.currentTransposeIndex < 0) {
-                    this.currentTransposeIndex = this.transposeIntervals.length - 1;
+                // Find the last option strictly smaller than currentInterval
+                const found = [...this.transposeIntervals].reverse().find(opt => opt < currentInterval);
+                if (found !== undefined) {
+                    nextInterval = found;
+                } else {
+                    // Wrap around to the largest option
+                    nextInterval = this.transposeIntervals[this.transposeIntervals.length - 1];
                 }
             }
 
-            const interval = this.transposeIntervals[this.currentTransposeIndex];
-            this.applyTranspose(api, interval);
+            this.applyTranspose(api, nextInterval);
+            this.currentTransposeIndex = this.transposeIntervals.indexOf(nextInterval);
         }
     }
 
