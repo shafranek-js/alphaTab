@@ -18,6 +18,7 @@ export function saveTrackSettings(api: alphaTab.AlphaTabApi): void {
         const volumeEl = el.querySelector<HTMLInputElement>('.track-volume');
         const balanceEl = el.querySelector<HTMLInputElement>('.track-balance');
         const transposeAudioEl = el.querySelector<HTMLInputElement>('.track-transpose-audio');
+        const transposeFullEl = el.querySelector<HTMLInputElement>('.track-transpose-full');
         const selectEl = el.querySelector<HTMLSelectElement>('.track-instrument');
         const soloEl = el.querySelector<HTMLButtonElement>('.track-button.success');
         const muteEl = el.querySelector<HTMLButtonElement>('.track-button.danger');
@@ -56,6 +57,7 @@ export function saveTrackSettings(api: alphaTab.AlphaTabApi): void {
             isMute: muteEl ? muteEl.classList.contains('active') : track.playbackInfo.isMute,
             isSolo: soloEl ? soloEl.classList.contains('active') : track.playbackInfo.isSolo,
             transpositionPitch: transposeAudioEl ? transposeAudioEl.valueAsNumber : 0,
+            transposeFull: transposeFullEl ? transposeFullEl.valueAsNumber : 0,
             program: selectEl ? Number(selectEl.value) : track.playbackInfo.program,
             staves
         });

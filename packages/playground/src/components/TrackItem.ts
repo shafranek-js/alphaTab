@@ -247,6 +247,13 @@ export class TrackItem implements Mountable {
         this.transposeAudio.value = String(savedTranspositionPitch);
         this.api.changeTrackTranspositionPitch([this.track], savedTranspositionPitch);
 
+        let savedTransposeFull = 0;
+        if (this.api.score) {
+            const pitches = this.api.settings.notation.transpositionPitches;
+            savedTransposeFull = pitches[track.index] ?? 0;
+        }
+        this.transposeFull.value = String(savedTransposeFull);
+
         this.instrument.addEventListener('change', () => {
             const program = Number(this.instrument.value);
             this.track.playbackInfo.program = program;

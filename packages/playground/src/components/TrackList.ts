@@ -48,6 +48,16 @@ export class TrackList implements Mountable {
                     track.playbackInfo.isMute = savedTrack.isMute;
                     track.playbackInfo.isSolo = savedTrack.isSolo;
                     track.playbackInfo.program = savedTrack.program;
+                    if (savedTrack.transpositionPitch !== undefined) {
+                        this.api.changeTrackTranspositionPitch([track], savedTrack.transpositionPitch);
+                    }
+                    if (savedTrack.transposeFull !== undefined) {
+                        const pitches = this.api.settings.notation.transpositionPitches;
+                        while (pitches.length < track.index + 1) {
+                            pitches.push(0);
+                        }
+                        pitches[track.index] = savedTrack.transposeFull;
+                    }
                     if (savedTrack.staves) {
                         for (const savedStaff of savedTrack.staves) {
                             const staff = track.staves.find(s => s.index === savedStaff.index);
