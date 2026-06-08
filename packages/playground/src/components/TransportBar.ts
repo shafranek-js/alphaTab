@@ -158,6 +158,41 @@ injectStyles(
         display: none;
     }
 
+    .at-metronome-icon-wrapper {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .at-metronome-icon-wrapper .at-icon {
+        transition: transform 0.1s ease-out, color 0.1s ease-out;
+    }
+    .at-metronome-icon-wrapper.flash .at-icon {
+        transform: scale(1.25);
+        color: #22c55e;
+        transition: none;
+    }
+    .at-metronome-indicator {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: #22c55e;
+        box-shadow: 0 0 6px #22c55e;
+        opacity: 0;
+        transform: scale(0.5);
+        transition: opacity 0.1s ease-out, transform 0.1s ease-out;
+        pointer-events: none;
+    }
+    .at-metronome-indicator.flash {
+        opacity: 1;
+        transform: scale(1.1);
+        box-shadow: 0 0 10px #22c55e;
+        transition: none;
+    }
+
     @media screen and (max-width: 920px) {
         .at-transport {
             flex-wrap: wrap;
@@ -215,6 +250,7 @@ export class TransportBar implements Mountable {
     private bottomPanelMode: PlaygroundBottomPanelMode;
     private subscriptions: (() => void)[] = [];
     private previousTime = -1;
+    private flashTimeoutId = 0;
 
     constructor(
         api: alphaTab.AlphaTabApi,
@@ -241,7 +277,10 @@ export class TransportBar implements Mountable {
 
                 <div class="at-transport-center">
                     <div class="at-control-item" title="Metronome Volume">
-                        <span class="at-icon at-metronome-icon"></span>
+                        <div class="at-metronome-icon-wrapper">
+                            <span class="at-icon at-metronome-icon"></span>
+                            <span class="at-metronome-indicator"></span>
+                        </div>
                         <input class="at-metronome-volume" type="range" min="0" max="1" step="0.1" value="0" />
                         <span class="at-metronome-volume-value">0%</span>
                     </div>
@@ -392,6 +431,17 @@ export class TransportBar implements Mountable {
             })
         );
 
+        api.midiEventsPlayedFilter = [242]; // 242 is alphaTab.midi.MidiEventType.AlphaTabMetronome
+        this.subscriptions.push(
+            api.midiEventsPlayed.on(args => {
+                for (const event of args.events) {
+                    if (event.type === 242 || (event as any).isMetronome) {
+                        this.flashMetronomeIndicator(api);
+                    }
+                }
+            })
+        );
+
         this.subscriptions.push(
             api.scoreLoaded.on(score => {
                 this.titleEl.textContent = score.title || 'Untitled';
@@ -486,6 +536,25 @@ export class TransportBar implements Mountable {
 
         if (this.looping) {
             this.looping.root.classList.toggle('active', loopVal);
+        }
+    }
+
+    private flashMetronomeIndicator(api: alphaTab.AlphaTabApi): void {
+        const isAudible = api.metronomeVolume > 0 || (api.countInVolume > 0 && api.timePosition <= 0);
+        if (!isAudible) {
+            return;
+        }
+        const wrapper = this.root.querySelector('.at-metronome-icon-wrapper');
+        const indicator = this.root.querySelector('.at-metronome-indicator');
+        if (wrapper && indicator) {
+            wrapper.classList.add('flash');
+            indicator.classList.add('flash');
+
+            window.clearTimeout(this.flashTimeoutId);
+            this.flashTimeoutId = window.setTimeout(() => {
+                wrapper.classList.remove('flash');
+                indicator.classList.remove('flash');
+            }, 100);
         }
     }
 
