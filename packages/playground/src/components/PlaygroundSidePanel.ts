@@ -199,6 +199,9 @@ export class PlaygroundSidePanel implements Mountable {
     private currentMode: PlaygroundSidePanelMode = null;
     private noteColorScheme: NoteColorScheme = 'off';
     private subscriptions: (() => void)[] = [];
+    private originalRender?: any;
+    private originalRenderScore?: any;
+    private originalRenderTracks?: any;
 
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
 
@@ -234,6 +237,30 @@ export class PlaygroundSidePanel implements Mountable {
                 this.buildSettings();
             })
         );
+
+        // Wrap rendering methods to ensure note colors are always applied synchronously
+        // before serialization and rendering (especially important for worker-based renderers).
+        this.originalRender = api.render;
+        api.render = (renderHints?: alphaTab.RenderHints) => {
+            if (api.score) {
+                applySuzukiNoteColors(api.score, this.noteColorScheme === 'suzuki');
+            }
+            this.originalRender.call(api, renderHints);
+        };
+
+        this.originalRenderScore = api.renderScore;
+        api.renderScore = (score: alphaTab.model.Score, trackIndexes?: number[], renderHints?: alphaTab.RenderHints) => {
+            applySuzukiNoteColors(score, this.noteColorScheme === 'suzuki');
+            this.originalRenderScore.call(api, score, trackIndexes, renderHints);
+        };
+
+        this.originalRenderTracks = api.renderTracks;
+        api.renderTracks = (tracks: alphaTab.model.Track[], renderHints?: alphaTab.RenderHints) => {
+            if (api.score) {
+                applySuzukiNoteColors(api.score, this.noteColorScheme === 'suzuki');
+            }
+            this.originalRenderTracks.call(api, tracks, renderHints);
+        };
     }
 
     setMode(mode: PlaygroundSidePanelMode): void {
@@ -773,5 +800,16 @@ export class PlaygroundSidePanel implements Mountable {
         this.closeButton.dispose();
         this.trackList.dispose();
         this.root.remove();
+
+        // Restore original render methods
+        if (this.originalRender) {
+            this.api.render = this.originalRender;
+        }
+        if (this.originalRenderScore) {
+            this.api.renderScore = this.originalRenderScore;
+        }
+        if (this.originalRenderTracks) {
+            this.api.renderTracks = this.originalRenderTracks;
+        }
     }
 }

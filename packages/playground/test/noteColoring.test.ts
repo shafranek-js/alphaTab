@@ -107,4 +107,55 @@ describe('applySuzukiNoteColors', () => {
         applySuzukiNoteColors(score, false);
         expect(normal.style).toBeUndefined();
     });
+
+    it('inspects Augustin GP file notes', async () => {
+        const fs = await import('fs');
+        const { ScoreLoader } = await import('../../alphatab/src/importer/ScoreLoader');
+        const { getSuzukiStep } = await import('../src/util/noteColoring');
+
+        const fileBytes = fs.readFileSync('C:\\Projects\\NoteBender\\melodies\\Ach_du_lieber_augustin.gp');
+        const score = ScoreLoader.loadScoreFromBytes(fileBytes);
+        console.log('--- AUGUSTIN NOTES INSPECTION ---');
+        console.log('Key Signature:', score.tracks[0].staves[0].bars[0].keySignature);
+
+        const notes: any[] = [];
+        for (const track of score.tracks) {
+            for (const staff of track.staves) {
+                for (const bar of staff.bars) {
+                    for (const voice of bar.voices) {
+                        for (const beat of voice.beats) {
+                            for (const note of beat.notes) {
+                                notes.push({
+                                    bar: bar.index + 1,
+                                    string: note.string,
+                                    fret: note.fret,
+                                    realValue: note.realValue,
+                                    displayValue: note.displayValue,
+                                    transpositionPitch: staff.transpositionPitch,
+                                    displayTranspositionPitch: staff.displayTranspositionPitch,
+                                    suzukiStep: getSuzukiStep(note)
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        console.log(JSON.stringify(notes.slice(0, 15), null, 2));
+    });
+
+    it('updates note colors dynamically when transposition occurs', () => {
+        const note = createNote(0); // C4 -> Red
+        const score = createScoreWithNotes([note]);
+
+        applySuzukiNoteColors(score, true);
+        expect(colorFor(note)).toBe('#ff0000'); // C
+
+        // Transpose up by 2 semitones: C becomes D (Orange)
+        score.tracks[0].staves[0].displayTranspositionPitch = -2;
+
+        // Apply colors again (as renderStarted would)
+        applySuzukiNoteColors(score, true);
+        expect(colorFor(note)).toBe('#ff9900'); // D
+    });
 });
