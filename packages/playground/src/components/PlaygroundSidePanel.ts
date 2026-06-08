@@ -202,10 +202,14 @@ export class PlaygroundSidePanel implements Mountable {
     private originalRender?: any;
     private originalRenderScore?: any;
     private originalRenderTracks?: any;
+    private barCursorColor: string = 'rgba(255, 255, 0, 0.25)';
+    private cursorStyleEl?: HTMLStyleElement;
 
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
 
     constructor(private api: alphaTab.AlphaTabApi) {
+        this.barCursorColor = localStorage.getItem('at-playground-bar-cursor-color') ?? 'rgba(255, 255, 0, 0.25)';
+        this.updateCursorStyles(this.barCursorColor);
         this.root = parseHtml(html`
             <aside class="at-side-panel" aria-hidden="true">
                 <div class="cmp-close"></div>
@@ -338,6 +342,7 @@ export class PlaygroundSidePanel implements Mountable {
             ]),
             this.section('Display ▸ Colors', [
                 this.noteColorRow(),
+                this.barCursorColorRow(),
                 this.colorRow('Staff Line', 'display.resources.staffLineColor'),
                 this.colorRow('Bar Separator', 'display.resources.barSeparatorColor'),
                 this.colorRow('Bar Number', 'display.resources.barNumberColor'),
@@ -792,6 +797,34 @@ export class PlaygroundSidePanel implements Mountable {
         );
     }
 
+    private barCursorColorRow(): HTMLElement {
+        const row = this.row('Bar Cursor Color');
+        const control = row.querySelector('.at-settings-control')!;
+        const input = parseHtml(html`
+            <input type="text" value="${this.barCursorColor}" />
+        `) as HTMLInputElement;
+        input.addEventListener('change', () => {
+            this.barCursorColor = input.value;
+            localStorage.setItem('at-playground-bar-cursor-color', this.barCursorColor);
+            this.updateCursorStyles(this.barCursorColor);
+        });
+        control.appendChild(input);
+        return row;
+    }
+
+    private updateCursorStyles(color: string): void {
+        if (!this.cursorStyleEl) {
+            this.cursorStyleEl = document.createElement('style');
+            this.cursorStyleEl.id = 'at-custom-cursor-styles';
+            document.head.appendChild(this.cursorStyleEl);
+        }
+        this.cursorStyleEl.textContent = `
+            .at-cursor-bar {
+                background: ${color} !important;
+            }
+        `;
+    }
+
     dispose(): void {
         for (const unsubscribe of this.subscriptions) {
             unsubscribe();
@@ -810,6 +843,11 @@ export class PlaygroundSidePanel implements Mountable {
         }
         if (this.originalRenderTracks) {
             this.api.renderTracks = this.originalRenderTracks;
+        }
+
+        // Clean up injected styles
+        if (this.cursorStyleEl) {
+            this.cursorStyleEl.remove();
         }
     }
 }
