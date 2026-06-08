@@ -27,6 +27,54 @@ export class TrackList implements Mountable {
     }
 
     private rebuild(score: alphaTab.model.Score): void {
+        const key = `${score.title}::${score.artist}`;
+        const savedSettingsStr = typeof localStorage !== 'undefined' ? localStorage.getItem('at-playground-track-settings') : null;
+        let savedSettings: any = null;
+        if (savedSettingsStr) {
+            try {
+                const allSettings = JSON.parse(savedSettingsStr);
+                savedSettings = allSettings[key];
+            } catch {}
+        }
+
+        if (savedSettings && savedSettings.tracks) {
+            for (const savedTrack of savedSettings.tracks) {
+                const track = score.tracks.find(t => t.index === savedTrack.index);
+                if (track) {
+                    track.playbackInfo.volume = savedTrack.volume;
+                    track.playbackInfo.isMute = savedTrack.isMute;
+                    track.playbackInfo.isSolo = savedTrack.isSolo;
+                    track.playbackInfo.program = savedTrack.program;
+                    if (savedTrack.staves) {
+                        for (const savedStaff of savedTrack.staves) {
+                            const staff = track.staves.find(s => s.index === savedStaff.index);
+                            if (staff) {
+                                staff.showStandardNotation = savedStaff.showStandardNotation;
+                                staff.showTablature = savedStaff.showTablature;
+                                staff.showSlash = savedStaff.showSlash;
+                                staff.showNumbered = savedStaff.showNumbered;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (savedSettings && savedSettings.activeTracks && savedSettings.activeTracks.length > 0) {
+            const activeTracks: alphaTab.model.Track[] = [];
+            for (const idx of savedSettings.activeTracks) {
+                const track = score.tracks.find(t => t.index === idx);
+                if (track) {
+                    activeTracks.push(track);
+                }
+            }
+            if (activeTracks.length > 0) {
+                (this.api as any)._tracks = activeTracks;
+                (this.api as any)._trackIndexes = activeTracks.map(t => t.index);
+                (this.api as any)._trackIndexLookup = new Set(activeTracks.map(t => t.index));
+            }
+        }
+
         for (const item of this.items) {
             item.dispose();
         }

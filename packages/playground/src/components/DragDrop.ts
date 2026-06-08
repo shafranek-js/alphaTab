@@ -5,11 +5,42 @@ export interface DragDropOptions {
     onLeave?: () => void;
 }
 
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
+
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
 export function loadScoreFile(api: alphaTab.AlphaTabApi, file: File): void {
     const reader = new FileReader();
     reader.onload = data => {
         if (data.target?.result) {
             api.load(data.target.result, [0]);
+            try {
+                if (typeof localStorage !== 'undefined') {
+                    const base64 = arrayBufferToBase64(data.target.result as ArrayBuffer);
+                    localStorage.setItem('at-playground-score-data', JSON.stringify({
+                        name: file.name,
+                        data: base64
+                    }));
+                }
+            } catch (e) {
+                console.error('Failed to save score to localStorage:', e);
+            }
         }
     };
     reader.readAsArrayBuffer(file);

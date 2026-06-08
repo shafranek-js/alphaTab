@@ -1,6 +1,7 @@
 import type * as alphaTab from '@coderline/alphatab';
 import { type Mountable, css, html, injectStyles, parseHtml } from '../util/Dom';
 import { FontAwesomeIcons, fontAwesomeIcon } from '../util/Icons';
+import { saveTrackSettings } from '../util/trackSettings';
 
 injectStyles(
     'TrackItem',
@@ -212,6 +213,24 @@ export class TrackItem implements Mountable {
         this.instrument = this.root.querySelector<HTMLSelectElement>('.track-instrument')!;
 
         this.instrument.value = String(track.playbackInfo.program);
+
+        let savedTranspositionPitch = 0;
+        if (this.api.score) {
+            const key = `${this.api.score.title}::${this.api.score.artist}`;
+            const savedSettingsStr = typeof localStorage !== 'undefined' ? localStorage.getItem('at-playground-track-settings') : null;
+            if (savedSettingsStr) {
+                try {
+                    const allSettings = JSON.parse(savedSettingsStr);
+                    const savedTrack = allSettings[key]?.tracks?.find((t: any) => t.index === track.index);
+                    if (savedTrack && savedTrack.transpositionPitch !== undefined) {
+                        savedTranspositionPitch = savedTrack.transpositionPitch;
+                    }
+                } catch {}
+            }
+        }
+        this.transposeAudio.value = String(savedTranspositionPitch);
+        this.api.changeTrackTranspositionPitch([this.track], savedTranspositionPitch);
+
         this.instrument.addEventListener('change', () => {
             const program = Number(this.instrument.value);
             this.track.playbackInfo.program = program;
@@ -246,6 +265,7 @@ export class TrackItem implements Mountable {
             }
 
             this.api.loadMidiForScore();
+            saveTrackSettings(this.api);
         });
 
         this.soloBtn.appendChild(fontAwesomeIcon(FontAwesomeIcons.Solo));
@@ -260,6 +280,7 @@ export class TrackItem implements Mountable {
             this.soloBtn.classList.toggle('active', active);
             this.track.playbackInfo.isSolo = active;
             this.api.changeTrackSolo([this.track], active);
+            saveTrackSettings(this.api);
         });
         this.muteBtn.addEventListener('click', e => {
             e.stopPropagation();
@@ -267,14 +288,19 @@ export class TrackItem implements Mountable {
             this.muteBtn.classList.toggle('active', active);
             this.track.playbackInfo.isMute = active;
             this.api.changeTrackMute([this.track], active);
+            saveTrackSettings(this.api);
         });
         this.volume.addEventListener('input', e => {
             e.stopPropagation();
-            this.api.changeTrackVolume([this.track], this.volume.valueAsNumber / Math.max(1, this.track.playbackInfo.volume));
+            const oldVolume = this.track.playbackInfo.volume;
+            this.track.playbackInfo.volume = this.volume.valueAsNumber;
+            this.api.changeTrackVolume([this.track], this.volume.valueAsNumber / Math.max(1, oldVolume));
+            saveTrackSettings(this.api);
         });
         this.transposeAudio.addEventListener('input', e => {
             e.stopPropagation();
             this.api.changeTrackTranspositionPitch([this.track], this.transposeAudio.valueAsNumber);
+            saveTrackSettings(this.api);
         });
         this.transposeFull.addEventListener('input', e => {
             e.stopPropagation();
@@ -285,6 +311,7 @@ export class TrackItem implements Mountable {
             pitches[this.track.index] = this.transposeFull.valueAsNumber;
             this.api.updateSettings();
             this.api.render();
+            saveTrackSettings(this.api);
         });
 
         this.buildStaves();
@@ -323,6 +350,7 @@ export class TrackItem implements Mountable {
         }
         tracks.sort((a, b) => a.index - b.index);
         this.api.renderTracks(tracks);
+        saveTrackSettings(this.api);
     }
 
     private buildStaves(): void {
@@ -364,6 +392,7 @@ export class TrackItem implements Mountable {
                 staff[option] = !staff[option];
                 this.setStaffButtonState(button, Boolean(staff[option]));
                 this.api.render();
+                saveTrackSettings(this.api);
             });
         }
         return root;

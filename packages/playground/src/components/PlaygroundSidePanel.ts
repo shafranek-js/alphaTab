@@ -1242,6 +1242,8 @@ export class PlaygroundSidePanel implements Mountable {
         localStorage.removeItem('at-playground-bar-cursor-color');
         localStorage.removeItem('at-playground-bar-cursor-opacity');
         localStorage.removeItem('at-playground-bar-cursor-position');
+        localStorage.removeItem('at-playground-score-data');
+        localStorage.removeItem('at-playground-track-settings');
         window.location.reload();
     }
 }

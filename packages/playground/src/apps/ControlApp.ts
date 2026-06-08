@@ -1,6 +1,6 @@
 import * as alphaTab from '@coderline/alphatab';
 import { Crosshair } from '../components/Crosshair';
-import { DragDrop } from '../components/DragDrop';
+import { DragDrop, base64ToArrayBuffer } from '../components/DragDrop';
 import { Footer } from '../components/Footer';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { PlaygroundSidePanel } from '../components/PlaygroundSidePanel';
@@ -76,12 +76,15 @@ export function buildSettings(options: ControlAppOptions, viewport: HTMLElement)
     const params = new URL(window.location.href).searchParams;
     const settings = new alphaTab.Settings();
     applyFonts(settings);
+
+    const hasSavedScore = typeof localStorage !== 'undefined' && localStorage.getItem('at-playground-score-data') !== null;
+
     settings.fillFromJson({
         core: {
             includeNoteBounds: true,
             logLevel: (params.get('loglevel') ?? 'info') as alphaTab.json.CoreSettingsJson['logLevel'],
             engine: params.get('engine') ?? 'svg',
-            file: options.file ?? Paths.defaultScore,
+            file: hasSavedScore ? null : (options.file ?? Paths.defaultScore),
             fontDirectory: options.fontDirectory ?? Paths.fontDirectory
         },
         player: {
@@ -94,6 +97,9 @@ export function buildSettings(options: ControlAppOptions, viewport: HTMLElement)
     } satisfies alphaTab.json.SettingsJson);
     if (options.settings) {
         settings.fillFromJson(options.settings);
+    }
+    if (hasSavedScore) {
+        settings.core.file = null;
     }
     settings.core.includeNoteBounds = true;
     return settings;
@@ -133,6 +139,25 @@ export class ControlApp implements Mountable {
         this.unsubError = this.api.error.on(e => {
             console.error('alphaTab error', e);
         });
+
+        const savedScoreDataStr = typeof localStorage !== 'undefined' ? localStorage.getItem('at-playground-score-data') : null;
+        if (savedScoreDataStr) {
+            try {
+                const savedScore = JSON.parse(savedScoreDataStr);
+                if (savedScore && savedScore.data) {
+                    const arrayBuffer = base64ToArrayBuffer(savedScore.data);
+                    this.api.load(arrayBuffer, [0]);
+                } else {
+                    throw new Error('Invalid score data format');
+                }
+            } catch (e) {
+                console.error('Failed to load saved score from localStorage, falling back to default:', e);
+                try {
+                    localStorage.removeItem('at-playground-score-data');
+                } catch {}
+                this.api.load(options.file ?? Paths.defaultScore, [0]);
+            }
+        }
 
         this.overlay = mount(this.root, '.cmp-overlay', new LoadingOverlay(this.api));
         this.sidePanel = mount(this.root, '.cmp-side-panel', new PlaygroundSidePanel(this.api));

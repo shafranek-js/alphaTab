@@ -186,7 +186,7 @@ function forEachNote(score: alphaTab.model.Score, handler: (note: alphaTab.model
     }
 }
 
-function getSuzukiStep(note: alphaTab.model.Note): string | null {
+export function getSuzukiStep(note: alphaTab.model.Note): string | null {
     let noteValue: number;
     try {
         noteValue = note.displayValue;
