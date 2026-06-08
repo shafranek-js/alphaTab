@@ -82,15 +82,15 @@ injectStyles(
         cursor: pointer;
         transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out;
     }
-    .at-metronome-volume.flash::-webkit-slider-thumb {
+    .at-transport-center .at-control-item input[type="range"].at-metronome-volume.flash::-webkit-slider-thumb {
         background-color: #22c55e !important;
-        box-shadow: 0 0 10px #22c55e;
-        transition: none;
+        box-shadow: 0 0 10px #22c55e !important;
+        transition: none !important;
     }
-    .at-metronome-volume.flash::-moz-range-thumb {
+    .at-transport-center .at-control-item input[type="range"].at-metronome-volume.flash::-moz-range-thumb {
         background-color: #22c55e !important;
-        box-shadow: 0 0 10px #22c55e;
-        transition: none;
+        box-shadow: 0 0 10px #22c55e !important;
+        transition: none !important;
     }
     .at-transport-left > *,
     .at-transport-right > * {
@@ -213,6 +213,7 @@ export interface TransportBarOptions {
 export class TransportBar implements Mountable {
     readonly root: HTMLElement;
     private playPause: IconButton;
+    private stop: IconButton;
     private mediaSync: IconButton;
     private practice: IconButton;
     private tracks: IconButton;
@@ -241,6 +242,7 @@ export class TransportBar implements Mountable {
                     <div class="cmp-open-file"></div>
                     <input class="at-file-input" type="file" accept=".gp,.gp3,.gp4,.gp5,.gpx,.musicxml,.mxml,.xml,.capx" />
                     <div class="cmp-play-pause"></div>
+                    <div class="cmp-stop"></div>
                     <div class="at-loading-slot hidden">
                         <div class="cmp-loading"></div>
                     </div>
@@ -312,6 +314,14 @@ export class TransportBar implements Mountable {
         this.playPause.root.classList.add('at-transport-primary');
         this.playPause.setEnabled(false);
         this.playPause.onClick = () => api.playPause();
+
+        this.stop = mount(
+            this.root,
+            '.cmp-stop',
+            new IconButton({ icon: FontAwesomeIcons.Stop, tooltip: 'Stop', ariaLabel: 'Stop' })
+        );
+        this.stop.setEnabled(false);
+        this.stop.onClick = () => api.stop();
 
         this.loadingProgress = mount(this.loadingSlot, '.cmp-loading', new LoadingProgress());
 
@@ -453,6 +463,7 @@ export class TransportBar implements Mountable {
         this.subscriptions.push(
             api.playerReady.on(() => {
                 this.playPause.setEnabled(true);
+                this.stop.setEnabled(true);
             })
         );
     }
@@ -522,10 +533,11 @@ export class TransportBar implements Mountable {
         if (input) {
             input.classList.add('flash');
 
+            const flashDuration = Math.max(30, Math.min(150, 100 / api.playbackSpeed));
             window.clearTimeout(this.flashTimeoutId);
             this.flashTimeoutId = window.setTimeout(() => {
                 input.classList.remove('flash');
-            }, 100);
+            }, flashDuration);
         }
     }
 

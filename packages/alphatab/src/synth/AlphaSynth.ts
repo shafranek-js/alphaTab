@@ -632,7 +632,7 @@ export class AlphaSynthBase implements IAlphaSynth {
             this.playedEventsQueue.clear();
         } else {
             const playedEvents: MidiEvent[] = [];
-            while (!this.playedEventsQueue.isEmpty && this.playedEventsQueue.peek()!.time < args.currentTime) {
+            while (!this.playedEventsQueue.isEmpty && (this.playedEventsQueue.peek()!.time / this.playbackSpeed) < args.currentTime) {
                 const synthEvent = this.playedEventsQueue.dequeue()!;
                 playedEvents.push(synthEvent.event);
             }
