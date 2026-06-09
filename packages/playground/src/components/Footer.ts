@@ -1,15 +1,12 @@
 import * as alphaTab from '@coderline/alphatab';
-import { type Mountable, css, html, injectStyles, mount, parseHtml } from '../util/Dom';
-import { TimeSlider } from './TimeSlider';
-import {
-    type PlaygroundBottomPanelMode,
-    TransportBar,
-    type TransportBarOptions
-} from './TransportBar';
-import type { TrackList } from './TrackList';
+import { css, html, injectStyles, type Mountable, mount, parseHtml } from '../util/Dom';
 import { FontAwesomeIcons, fontAwesomeIcon } from '../util/Icons';
-import { Waveform } from './Waveform';
+import { PianoKeyboard } from './PianoKeyboard';
 import { PracticePanel } from './practice/PracticePanel';
+import { TimeSlider } from './TimeSlider';
+import type { TrackList } from './TrackList';
+import { type PlaygroundBottomPanelMode, TransportBar, type TransportBarOptions } from './TransportBar';
+import { Waveform } from './Waveform';
 
 injectStyles(
     'Footer',
@@ -238,9 +235,12 @@ export class Footer implements Mountable {
     readonly timeSlider: TimeSlider;
     readonly transport: TransportBar;
     readonly practicePanel: PracticePanel | null;
+    readonly keyboardPanel: PianoKeyboard | null;
     private mediaSyncPanel: HTMLElement;
     private mediaMode: 'synth' | 'audio' | 'youtube' = 'synth';
     private zoom = 1;
+    private isKeyboardVisible = true;
+    private currentBottomPanelMode: PlaygroundBottomPanelMode = null;
 
     constructor(
         private api: alphaTab.AlphaTabApi,
@@ -289,6 +289,7 @@ export class Footer implements Mountable {
                     </div>
                 </div>
                 <div class="cmp-practice-panel"></div>
+                <div class="cmp-keyboard-panel"></div>
                 <div class="cmp-waveform"></div>
                 <div class="cmp-time-slider"></div>
                 <div class="cmp-transport"></div>
@@ -296,11 +297,12 @@ export class Footer implements Mountable {
         `);
         this.mediaSyncPanel = this.root.querySelector('.at-footer-media-sync')!;
         this.setupMediaSyncToolbar();
+        this.keyboardPanel = mount(this.root, '.cmp-keyboard-panel', new PianoKeyboard(api));
         if (options.practiceOverlayHost) {
             this.practicePanel = mount(
                 this.root,
                 '.cmp-practice-panel',
-                new PracticePanel(api, options.practiceOverlayHost)
+                new PracticePanel(api, options.practiceOverlayHost, this.keyboardPanel)
             );
         } else {
             this.root.querySelector('.cmp-practice-panel')!.remove();
@@ -313,14 +315,34 @@ export class Footer implements Mountable {
             this.waveform = null;
         }
         this.timeSlider = mount(this.root, '.cmp-time-slider', new TimeSlider(api));
+
+        let savedKeyboardVisible = true;
+        try {
+            const dataStr = localStorage.getItem('at-playground-settings');
+            if (dataStr) {
+                const data = JSON.parse(dataStr);
+                if (data?.custom?.isKeyboardVisible !== undefined) {
+                    savedKeyboardVisible = !!data.custom.isKeyboardVisible;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load saved settings:', e);
+        }
+        this.isKeyboardVisible = savedKeyboardVisible;
+
         this.transport = mount(
             this.root,
             '.cmp-transport',
             new TransportBar(api, {
                 ...options,
+                isKeyboardVisible: this.isKeyboardVisible,
                 onBottomPanelModeChange: mode => {
                     this.setBottomPanelMode(mode);
                     options.onBottomPanelModeChange?.(mode);
+                },
+                onKeyboardVisibilityChange: visible => {
+                    this.isKeyboardVisible = visible;
+                    this.keyboardPanel?.setOpen(this.currentBottomPanelMode === 'practice' && visible);
                 }
             })
         );
@@ -328,7 +350,9 @@ export class Footer implements Mountable {
     }
 
     setBottomPanelMode(mode: PlaygroundBottomPanelMode): void {
+        this.currentBottomPanelMode = mode;
         this.mediaSyncPanel.classList.toggle('open', mode === 'media-sync');
+        this.keyboardPanel?.setOpen(mode === 'practice' && this.isKeyboardVisible);
         this.practicePanel?.setOpen(mode === 'practice');
         this.transport.setBottomPanelMode(mode);
     }
@@ -337,6 +361,7 @@ export class Footer implements Mountable {
         document.removeEventListener('click', this.closeMediaMenu);
         this.waveform?.dispose();
         this.practicePanel?.dispose();
+        this.keyboardPanel?.dispose();
         this.timeSlider.dispose();
         this.transport.dispose();
         this.root.remove();
@@ -412,7 +437,9 @@ export class Footer implements Mountable {
             return;
         }
         this.mediaMode = mode;
-        for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-icon="synth"], [data-icon="audio"], [data-icon="youtube"]')) {
+        for (const button of this.root.querySelectorAll<HTMLButtonElement>(
+            '[data-icon="synth"], [data-icon="audio"], [data-icon="youtube"]'
+        )) {
             const active = button.dataset.icon === mode;
             button.classList.toggle('button--primary', active);
             button.classList.toggle('button--secondary', !active);
@@ -465,10 +492,13 @@ export class Footer implements Mountable {
 
     private flashSyncMarkers(): void {
         for (const marker of this.root.querySelectorAll<HTMLElement>('.at-media-sync-marker')) {
-            marker.animate([{ backgroundColor: '#4972a1' }, { backgroundColor: '#c80000' }, { backgroundColor: '#4972a1' }], {
-                duration: 350,
-                iterations: 1
-            });
+            marker.animate(
+                [{ backgroundColor: '#4972a1' }, { backgroundColor: '#c80000' }, { backgroundColor: '#4972a1' }],
+                {
+                    duration: 350,
+                    iterations: 1
+                }
+            );
         }
     }
 }

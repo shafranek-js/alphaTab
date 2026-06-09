@@ -1,12 +1,12 @@
 import * as alphaTab from '@coderline/alphatab';
-import { type Mountable, css, html, injectStyles, parseHtml } from '../../util/Dom';
 import { MidiInputService, type MidiInputState, type MidiNoteInput } from '../../input/MidiInputService';
+import { css, html, injectStyles, type Mountable, parseHtml } from '../../util/Dom';
+import type { PianoKeyboard } from '../PianoKeyboard';
 import {
-    PracticeSession,
     buildPracticeQueue,
     getPlayableBeatsFromTracks,
     type PracticeInputResult,
-    type PracticeQueueItem,
+    PracticeSession,
     type PracticeSessionState
 } from './PracticeController';
 import { PracticeOverlay } from './PracticeOverlay';
@@ -16,84 +16,104 @@ injectStyles(
     css`
     .at-footer-practice {
         display: none;
-        min-height: 118px;
-        border-top: 1px solid rgba(0, 0, 0, 0.12);
-        background: #fff;
-        color: #1f2328;
+        border-top: 1px solid var(--at-border);
+        background: var(--at-bg);
+        color: var(--at-text);
+        padding: 8px 12px;
     }
     .at-footer-practice.open {
         display: block;
     }
     .at-practice-panel {
-        display: grid;
-        grid-template-columns: minmax(220px, 1fr) auto;
-        gap: 12px;
-        align-items: center;
-        padding: 12px;
-    }
-    .at-practice-main {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, auto));
-        gap: 10px 18px;
-        align-items: center;
-        justify-content: start;
-    }
-    .at-practice-field {
         display: flex;
-        flex-direction: column;
-        gap: 3px;
-        min-width: 120px;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        font-size: 13px;
     }
-    .at-practice-field > span:first-child {
-        color: #5f6874;
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
-    .at-practice-value {
-        font-weight: 700;
-        white-space: nowrap;
-    }
-    .at-practice-feedback {
-        min-height: 18px;
-        color: #5f6874;
-        font-weight: 600;
-    }
-    .at-practice-feedback.correct { color: #1f8f4d; }
-    .at-practice-feedback.wrong { color: #c92a2a; }
-    .at-practice-actions {
+    .at-practice-left {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        gap: 16px;
+    }
+    .at-midi-status {
+        display: flex;
+        align-items: center;
         gap: 8px;
-        flex-wrap: wrap;
     }
-    .at-practice-actions select {
-        min-height: 36px;
-        max-width: 220px;
-        border: 1px solid #dadde1;
-        border-radius: 4px;
-        background: #fff;
-        color: #1f2328;
+    .at-midi-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #6b7280;
+        display: inline-block;
+        box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+        transition: background-color 0.2s, box-shadow 0.2s;
+    }
+    .at-midi-indicator.connected {
+        background: #10b981;
+        box-shadow: 0 0 6px #10b981;
+    }
+    .at-midi-indicator.connecting {
+        background: #f59e0b;
+        box-shadow: 0 0 6px #f59e0b;
+    }
+    .at-midi-indicator.error {
+        background: #ef4444;
+        box-shadow: 0 0 6px #ef4444;
+    }
+    .at-midi-select {
         font: inherit;
-        padding: 0 8px;
+        font-weight: 600;
+        border: 1px solid var(--at-border);
+        border-radius: 4px;
+        background: var(--at-bg);
+        color: var(--at-text);
+        padding: 2px 8px;
+        outline: none;
+        cursor: pointer;
+        max-width: 180px;
     }
-    .at-practice-actions label {
+    .at-practice-label {
         display: inline-flex;
         align-items: center;
         gap: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+    }
+    .at-practice-center {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+        justify-content: flex-end;
+    }
+    .at-practice-progress {
         font-weight: 700;
+        background: var(--at-border);
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        color: var(--at-text);
         white-space: nowrap;
     }
-    @media screen and (max-width: 920px) {
-        .at-practice-panel {
-            grid-template-columns: 1fr;
-        }
-        .at-practice-actions {
-            justify-content: flex-start;
-        }
+    .at-practice-feedback {
+        font-weight: 600;
+        color: var(--at-text);
+        font-size: 13px;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
-`
+    .at-practice-feedback.correct {
+        color: #10b981;
+    }
+    .at-practice-feedback.wrong {
+        color: #ef4444;
+    }
+    `
 );
 
 export class PracticePanel implements Mountable {
@@ -101,74 +121,78 @@ export class PracticePanel implements Mountable {
     private midiService = new MidiInputService();
     private session = new PracticeSession<alphaTab.model.Beat>();
     private overlay: PracticeOverlay;
-    private statusEl: HTMLElement;
-    private expectedEl: HTMLElement;
+    private indicatorEl: HTMLElement;
     private progressEl: HTMLElement;
     private feedbackEl: HTMLElement;
     private inputSelect: HTMLSelectElement;
     private ignoreOctaveInput: HTMLInputElement;
-    private connectButton: HTMLButtonElement;
-    private startButton: HTMLButtonElement;
-    private stopButton: HTMLButtonElement;
-    private resetButton: HTMLButtonElement;
+    private showHintsInput: HTMLInputElement;
+    private showHints = true;
     private subscriptions: (() => void)[] = [];
     private lastMidiState: MidiInputState = this.midiService.getState();
 
     public constructor(
         private api: alphaTab.AlphaTabApi,
-        overlayHost: HTMLElement
+        overlayHost: HTMLElement,
+        private keyboardPanel: PianoKeyboard | null = null
     ) {
         this.root = parseHtml(html`
             <div class="at-footer-practice">
                 <div class="at-practice-panel">
-                    <div class="at-practice-main">
-                        <div class="at-practice-field">
-                            <span>MIDI</span>
-                            <span class="at-practice-value" data-practice-status>Not connected</span>
+                    <div class="at-practice-left">
+                        <div class="at-midi-status">
+                            <span class="at-midi-indicator" data-practice-indicator></span>
+                            <select class="at-midi-select" data-practice-input aria-label="MIDI input"></select>
                         </div>
-                        <div class="at-practice-field">
-                            <span>Expected</span>
-                            <span class="at-practice-value" data-practice-expected>-</span>
-                        </div>
-                        <div class="at-practice-field">
-                            <span>Progress</span>
-                            <span class="at-practice-value" data-practice-progress>0 / 0</span>
-                        </div>
-                        <div class="at-practice-feedback" data-practice-feedback></div>
+                        <label class="at-practice-label">
+                            <input type="checkbox" data-practice-octave /> Ignore octave
+                        </label>
+                        <label class="at-practice-label">
+                            <input type="checkbox" data-practice-hints /> Show hints
+                        </label>
                     </div>
-                    <div class="at-practice-actions">
-                        <select data-practice-input aria-label="MIDI input"></select>
-                        <label><input type="checkbox" data-practice-octave /> Ignore octave</label>
-                        <button type="button" class="button button--secondary" data-practice-connect>Connect MIDI</button>
-                        <button type="button" class="button button--primary" data-practice-start>Start</button>
-                        <button type="button" class="button button--secondary" data-practice-stop>Stop</button>
-                        <button type="button" class="button button--secondary button--outline" data-practice-reset>Reset</button>
+                    <div class="at-practice-center">
+                        <span class="at-practice-feedback" data-practice-feedback></span>
+                        <span class="at-practice-progress" data-practice-progress>0 / 0</span>
                     </div>
                 </div>
             </div>
         `);
 
         this.overlay = new PracticeOverlay(api, overlayHost);
-        this.statusEl = this.root.querySelector('[data-practice-status]')!;
-        this.expectedEl = this.root.querySelector('[data-practice-expected]')!;
+        this.indicatorEl = this.root.querySelector('[data-practice-indicator]')!;
         this.progressEl = this.root.querySelector('[data-practice-progress]')!;
         this.feedbackEl = this.root.querySelector('[data-practice-feedback]')!;
         this.inputSelect = this.root.querySelector('[data-practice-input]')!;
         this.ignoreOctaveInput = this.root.querySelector('[data-practice-octave]')!;
-        this.connectButton = this.root.querySelector('[data-practice-connect]')!;
-        this.startButton = this.root.querySelector('[data-practice-start]')!;
-        this.stopButton = this.root.querySelector('[data-practice-stop]')!;
-        this.resetButton = this.root.querySelector('[data-practice-reset]')!;
+        this.showHintsInput = this.root.querySelector('[data-practice-hints]')!;
 
-        this.connectButton.addEventListener('click', () => this.connectMidi());
-        this.startButton.addEventListener('click', () => this.start());
-        this.stopButton.addEventListener('click', () => this.stop());
-        this.resetButton.addEventListener('click', () => this.reset());
         this.inputSelect.addEventListener('change', () => {
             this.midiService.selectInput(this.inputSelect.value);
         });
         this.ignoreOctaveInput.addEventListener('change', () => {
             this.session.setIgnoreOctave(this.ignoreOctaveInput.checked);
+            this.refresh();
+        });
+
+        let savedShowHints = true;
+        try {
+            const dataStr = localStorage.getItem('at-playground-settings');
+            if (dataStr) {
+                const data = JSON.parse(dataStr);
+                if (data?.custom?.showHints !== undefined) {
+                    savedShowHints = !!data.custom.showHints;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load saved settings:', e);
+        }
+        this.showHints = savedShowHints;
+        this.showHintsInput.checked = this.showHints;
+
+        this.showHintsInput.addEventListener('change', () => {
+            this.showHints = this.showHintsInput.checked;
+            this.saveCustomSetting('showHints', this.showHints);
             this.refresh();
         });
 
@@ -181,13 +205,19 @@ export class PracticePanel implements Mountable {
         this.rebuildQueue();
         this.updateMidiState(this.lastMidiState);
         this.refresh();
+
+        // Automatically connect MIDI input
+        this.connectMidi();
     }
 
     public setOpen(open: boolean): void {
         this.root.classList.toggle('open', open);
         if (open) {
+            this.connectMidi();
             this.rebuildQueue();
-            this.refresh();
+            this.start();
+        } else {
+            this.stop();
         }
     }
 
@@ -213,7 +243,8 @@ export class PracticePanel implements Mountable {
         }
         const state = this.session.start();
         this.seekToCurrent(state);
-        this.feedbackEl.textContent = state.total > 0 ? 'Play the highlighted note.' : 'No playable notes in the rendered score.';
+        this.feedbackEl.textContent =
+            state.total > 0 ? 'Play the highlighted note.' : 'No playable notes in the rendered score.';
         this.feedbackEl.className = 'at-practice-feedback';
         this.refresh();
     }
@@ -221,15 +252,8 @@ export class PracticePanel implements Mountable {
     private stop(): void {
         this.session.stop();
         this.overlay.clear();
+        this.keyboardPanel?.clearHints();
         this.feedbackEl.textContent = 'Practice stopped.';
-        this.feedbackEl.className = 'at-practice-feedback';
-        this.refresh();
-    }
-
-    private reset(): void {
-        this.session.reset();
-        this.overlay.clear();
-        this.feedbackEl.textContent = '';
         this.feedbackEl.className = 'at-practice-feedback';
         this.refresh();
     }
@@ -271,6 +295,7 @@ export class PracticePanel implements Mountable {
                 this.feedbackEl.textContent = 'Practice complete.';
                 this.feedbackEl.className = 'at-practice-feedback correct';
                 this.overlay.flash(result.item, 'correct');
+                this.keyboardPanel?.clearHints();
                 break;
         }
         this.refresh();
@@ -286,23 +311,34 @@ export class PracticePanel implements Mountable {
 
     private refresh(): void {
         const state = this.session.getState();
-        this.expectedEl.textContent = state.currentItem ? formatExpectedNotes(state.currentItem) : '-';
         this.progressEl.textContent = `${Math.min(state.currentIndex + (state.complete ? 0 : 1), state.total)} / ${state.total}`;
-        this.startButton.disabled = state.running || state.total === 0;
-        this.stopButton.disabled = !state.running;
-        this.resetButton.disabled = state.total === 0;
-        if (state.running) {
+        if (state.running && state.currentItem) {
             this.overlay.showItem(state.currentItem, state.matchedNotes);
-        } else if (!state.complete) {
-            this.overlay.clear();
+            if (this.showHints) {
+                this.keyboardPanel?.setHintNotes(state.currentItem.expectedNotes);
+            } else {
+                this.keyboardPanel?.clearHints();
+            }
+        } else {
+            if (!state.complete) {
+                this.overlay.clear();
+            }
+            this.keyboardPanel?.clearHints();
         }
     }
 
     private updateMidiState(state: MidiInputState): void {
         this.lastMidiState = state;
-        this.statusEl.textContent = this.getMidiStatusText(state);
-        this.connectButton.disabled = state.connecting || !state.available;
-        this.connectButton.textContent = state.connecting ? 'Connecting...' : 'Connect MIDI';
+
+        this.indicatorEl.className = 'at-midi-indicator';
+        if (!state.available || state.error) {
+            this.indicatorEl.classList.add('error');
+        } else if (state.connecting) {
+            this.indicatorEl.classList.add('connecting');
+        } else if (state.enabled) {
+            this.indicatorEl.classList.add('connected');
+        }
+
         this.inputSelect.disabled = state.inputs.length === 0;
         this.renderInputOptions(state);
     }
@@ -323,26 +359,19 @@ export class PracticePanel implements Mountable {
         this.inputSelect.value = selected;
     }
 
-    private getMidiStatusText(state: MidiInputState): string {
-        if (!state.available) {
-            return 'Web MIDI unavailable';
+    private saveCustomSetting(key: string, value: any): void {
+        try {
+            const dataStr = localStorage.getItem('at-playground-settings');
+            const data = dataStr ? JSON.parse(dataStr) : {};
+            if (!data.custom) {
+                data.custom = {};
+            }
+            data.custom[key] = value;
+            localStorage.setItem('at-playground-settings', JSON.stringify(data));
+        } catch (e) {
+            console.error('Failed to save custom setting:', e);
         }
-        if (state.error) {
-            return state.error;
-        }
-        if (state.connecting) {
-            return 'Connecting...';
-        }
-        if (!state.enabled) {
-            return 'Not connected';
-        }
-        return `${state.inputs.length} input${state.inputs.length === 1 ? '' : 's'} connected`;
     }
-
-}
-
-function formatExpectedNotes(item: PracticeQueueItem<alphaTab.model.Beat>): string {
-    return item.expectedNotes.map(formatMidiNote).join(' + ');
 }
 
 function formatMidiNote(note: number): string {

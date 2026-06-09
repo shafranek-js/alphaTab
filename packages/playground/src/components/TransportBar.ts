@@ -1,11 +1,11 @@
 import * as alphaTab from '@coderline/alphatab';
-import { type Mountable, css, html, injectStyles, mount, parseHtml } from '../util/Dom';
+import { css, html, injectStyles, type Mountable, mount, parseHtml } from '../util/Dom';
 import { FontAwesomeIcons, Icons, icon } from '../util/Icons';
 import { loadScoreFile } from './DragDrop';
 import type { PlaygroundSidePanelMode } from './PlaygroundSidePanel';
+import { findBestPianoTransposeIntervals } from './practice/PracticeController';
 import { IconButton } from './primitives/IconButton';
 import { LoadingProgress } from './primitives/LoadingProgress';
-import { findBestPianoTransposeIntervals } from './practice/PracticeController';
 
 export type PlaygroundBottomPanelMode = 'media-sync' | 'practice' | null;
 
@@ -251,8 +251,10 @@ injectStyles(
 export interface TransportBarOptions {
     sidePanelMode?: PlaygroundSidePanelMode;
     bottomPanelMode?: PlaygroundBottomPanelMode;
+    isKeyboardVisible?: boolean;
     onSidePanelModeChange?: (mode: PlaygroundSidePanelMode) => void;
     onBottomPanelModeChange?: (mode: PlaygroundBottomPanelMode) => void;
+    onKeyboardVisibilityChange?: (visible: boolean) => void;
 }
 
 export class TransportBar implements Mountable {
@@ -261,6 +263,7 @@ export class TransportBar implements Mountable {
     private stop: IconButton;
     private mediaSync: IconButton;
     private practice: IconButton;
+    private keyboard: IconButton;
     private tracks: IconButton;
     private settings: IconButton;
     private looping: IconButton;
@@ -271,6 +274,7 @@ export class TransportBar implements Mountable {
     private timePositionEl: HTMLElement;
     private sidePanelMode: PlaygroundSidePanelMode;
     private bottomPanelMode: PlaygroundBottomPanelMode;
+    private isKeyboardVisible = true;
     private subscriptions: (() => void)[] = [];
     private previousTime = -1;
     private flashTimeoutId = 0;
@@ -287,6 +291,7 @@ export class TransportBar implements Mountable {
     ) {
         this.sidePanelMode = options.sidePanelMode ?? null;
         this.bottomPanelMode = options.bottomPanelMode ?? null;
+        this.isKeyboardVisible = options.isKeyboardVisible ?? true;
         this.root = parseHtml(html`
             <div class="at-transport">
                 <div class="at-transport-left">
@@ -334,6 +339,7 @@ export class TransportBar implements Mountable {
                 <div class="at-transport-right">
                     <div class="cmp-media-sync"></div>
                     <div class="cmp-practice"></div>
+                    <div class="cmp-keyboard"></div>
                     <div class="cmp-tracks"></div>
                     <div class="cmp-settings"></div>
                 </div>
@@ -348,12 +354,12 @@ export class TransportBar implements Mountable {
         this.root.querySelector('.at-count-in-icon')!.replaceChildren(icon(Icons.Volume));
         this.root.querySelector('.at-speed-icon')!.replaceChildren(icon(Icons.CountIn));
         this.root.querySelector('.at-transpose-icon')!.replaceChildren(icon(Icons.Transpose));
- 
+
         this.transposeValEl = this.root.querySelector('.at-transpose-value')!;
         this.transposeOptionsCountEl = this.root.querySelector('.at-transpose-options-count')!;
         this.transposeDownBtn = this.root.querySelector('.at-transpose-down')!;
         this.transposeUpBtn = this.root.querySelector('.at-transpose-up')!;
- 
+
         this.transposeDownBtn.addEventListener('click', () => this.changeTranspose(api, -1));
         this.transposeUpBtn.addEventListener('click', () => this.changeTranspose(api, 1));
         this.transposeValEl.addEventListener('click', () => this.resetTranspose(api));
@@ -413,6 +419,27 @@ export class TransportBar implements Mountable {
             const next = this.bottomPanelMode === 'practice' ? null : 'practice';
             this.setBottomPanelMode(next);
             this.options.onBottomPanelModeChange?.(next);
+        };
+
+        this.keyboard = mount(
+            this.root,
+            '.cmp-keyboard',
+            new IconButton({ icon: Icons.Keyboard, label: 'Keyboard', tooltip: 'Keyboard' })
+        );
+        this.keyboard.onClick = () => {
+            if (this.bottomPanelMode !== 'practice') {
+                this.isKeyboardVisible = true;
+                this.setBottomPanelMode('practice');
+                this.options.onBottomPanelModeChange?.('practice');
+                this.options.onKeyboardVisibilityChange?.(true);
+                this.saveSetting('isKeyboardVisible', true);
+            } else {
+                const next = !this.isKeyboardVisible;
+                this.isKeyboardVisible = next;
+                this.options.onKeyboardVisibilityChange?.(next);
+                this.saveSetting('isKeyboardVisible', next);
+                this.refreshActiveButtons();
+            }
         };
 
         this.tracks = mount(
@@ -478,9 +505,7 @@ export class TransportBar implements Mountable {
             this.saveSetting('playbackSpeed', val);
         });
 
-        this.subscriptions.push(
-            api.scoreLoaded.on(() => this.syncControls(api))
-        );
+        this.subscriptions.push(api.scoreLoaded.on(() => this.syncControls(api)));
         this.subscriptions.push(
             api.playerPositionChanged.on(() => {
                 this.syncControls(api);
@@ -593,6 +618,7 @@ export class TransportBar implements Mountable {
         this.setActiveButton(this.settings, this.sidePanelMode === 'settings');
         this.setActiveButton(this.mediaSync, this.bottomPanelMode === 'media-sync');
         this.setActiveButton(this.practice, this.bottomPanelMode === 'practice');
+        this.setActiveButton(this.keyboard, this.bottomPanelMode === 'practice' && this.isKeyboardVisible);
     }
 
     private setActiveButton(button: IconButton, active: boolean): void {
@@ -612,21 +638,27 @@ export class TransportBar implements Mountable {
         if (metronomeInput && metronomeInput.valueAsNumber !== metronomeVal) {
             metronomeInput.value = String(metronomeVal);
             const label = this.root.querySelector('.at-metronome-volume-value');
-            if (label) label.textContent = `${(metronomeVal * 100).toFixed(0)}%`;
+            if (label) {
+                label.textContent = `${(metronomeVal * 100).toFixed(0)}%`;
+            }
         }
 
         const countInInput = this.root.querySelector<HTMLInputElement>('.at-count-in-volume');
         if (countInInput && countInInput.valueAsNumber !== countInVal) {
             countInInput.value = String(countInVal);
             const label = this.root.querySelector('.at-count-in-volume-value');
-            if (label) label.textContent = `${(countInVal * 100).toFixed(0)}%`;
+            if (label) {
+                label.textContent = `${(countInVal * 100).toFixed(0)}%`;
+            }
         }
 
         const speedInput = this.root.querySelector<HTMLInputElement>('.at-playback-speed');
         if (speedInput && speedInput.valueAsNumber !== speedVal) {
             speedInput.value = String(speedVal);
             const label = this.root.querySelector('.at-playback-speed-value');
-            if (label) label.textContent = `${speedVal.toFixed(1)}x`;
+            if (label) {
+                label.textContent = `${speedVal.toFixed(1)}x`;
+            }
         }
 
         if (this.looping) {
@@ -668,10 +700,12 @@ export class TransportBar implements Mountable {
                 }
             }
         }
-        
+
         const uniqueMidi = new Set<number>();
         for (const beat of beats) {
-            if (beat.isRest) continue;
+            if (beat.isRest) {
+                continue;
+            }
             for (const note of beat.notes) {
                 if (note.realValue > 0) {
                     uniqueMidi.add(note.realValue);
@@ -690,7 +724,10 @@ export class TransportBar implements Mountable {
         this.transposeValEl.textContent = `${currentInterval > 0 ? '+' : ''}${currentInterval}`;
 
         if (this.transposeIntervals.length > 0) {
-            const displayIndex = this.currentTransposeIndex >= 0 ? `${this.currentTransposeIndex + 1}/${this.transposeIntervals.length}` : `-/${this.transposeIntervals.length}`;
+            const displayIndex =
+                this.currentTransposeIndex >= 0
+                    ? `${this.currentTransposeIndex + 1}/${this.transposeIntervals.length}`
+                    : `-/${this.transposeIntervals.length}`;
             this.transposeOptionsCountEl.textContent = `(${displayIndex})`;
         } else {
             this.transposeOptionsCountEl.textContent = `(-)`;
@@ -745,7 +782,10 @@ export class TransportBar implements Mountable {
         this.saveSetting('transpose', interval);
     }
 
-    private saveSetting(key: 'metronomeVolume' | 'countInVolume' | 'playbackSpeed' | 'isLooping' | 'transpose', value: any): void {
+    private saveSetting(
+        key: 'metronomeVolume' | 'countInVolume' | 'playbackSpeed' | 'isLooping' | 'transpose' | 'isKeyboardVisible',
+        value: any
+    ): void {
         try {
             const dataStr = localStorage.getItem('at-playground-settings');
             const data = dataStr ? JSON.parse(dataStr) : {};
@@ -758,6 +798,8 @@ export class TransportBar implements Mountable {
 
             if (key === 'transpose') {
                 data.custom.transpose = value;
+            } else if (key === 'isKeyboardVisible') {
+                data.custom.isKeyboardVisible = value;
             } else {
                 data.api[key] = value;
             }

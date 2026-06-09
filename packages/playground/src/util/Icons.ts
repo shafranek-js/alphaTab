@@ -24,6 +24,7 @@ import {
     Printer,
     Redo,
     Repeat,
+    Keyboard,
     ScrollText,
     Search,
     Settings,
@@ -108,6 +109,7 @@ export const Icons = {
     Track: Guitar as IconNode,
     TrackDrum: Drum as IconNode,
     TrackPiano: Piano as IconNode,
+    Keyboard: Keyboard as IconNode,
     TrackVoice: Mic as IconNode,
     Menu: Menu as IconNode
 } satisfies Record<string, IconNode>;
