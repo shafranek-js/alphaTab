@@ -1,4 +1,4 @@
-import type * as alphaTab from '@coderline/alphatab';
+import * as alphaTab from '@coderline/alphatab';
 import { type Mountable, css, html, injectStyles, parseHtml } from '../util/Dom';
 import { FontAwesomeIcons, fontAwesomeIcon } from '../util/Icons';
 import { saveTrackSettings } from '../util/trackSettings';
@@ -323,7 +323,7 @@ export class TrackItem implements Mountable {
                 }
             }
 
-            this.api.loadMidiForScore();
+            this.loadMidiForScoreDynamic();
             saveTrackSettings(this.api);
         });
 
@@ -400,7 +400,7 @@ export class TrackItem implements Mountable {
                 }
             }
 
-            this.api.loadMidiForScore();
+            this.loadMidiForScoreDynamic();
             saveTrackSettings(this.api);
         });
         this.transposeLockBtn.addEventListener('click', e => {
@@ -533,5 +533,32 @@ export class TrackItem implements Mountable {
         button.classList.toggle('button--primary', active);
         button.classList.toggle('button--secondary', !active);
         button.classList.toggle('button--outline', !active);
+    }
+
+    private loadMidiForScoreDynamic(): void {
+        const wasPlaying = this.api.playerState === alphaTab.synth.PlayerState.Playing;
+        const savedTick = this.api.tickPosition;
+
+        let unsubscribeLoaded: (() => void) | null = null;
+        let unsubscribeFailed: (() => void) | null = null;
+
+        const cleanUp = () => {
+            if (unsubscribeLoaded) unsubscribeLoaded();
+            if (unsubscribeFailed) unsubscribeFailed();
+        };
+
+        unsubscribeLoaded = this.api.midiLoaded.on(() => {
+            cleanUp();
+            this.api.tickPosition = savedTick;
+            if (wasPlaying) {
+                this.api.play();
+            }
+        });
+
+        unsubscribeFailed = this.api.error.on(() => {
+            cleanUp();
+        });
+
+        this.api.loadMidiForScore();
     }
 }
