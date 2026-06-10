@@ -50,7 +50,10 @@ export function buildPracticeQueue<TBeat extends PracticeBeatSource>(
         }
 
         const expectedNotes = uniqueNotes(
-            beat.notes.filter(note => note.isVisible !== false).map(note => note.realValue).filter(value => value > 0)
+            beat.notes
+                .filter(note => note.isVisible !== false)
+                .map(note => note.realValue)
+                .filter(value => value > 0)
         );
         if (expectedNotes.length === 0) {
             continue;
@@ -59,7 +62,7 @@ export function buildPracticeQueue<TBeat extends PracticeBeatSource>(
         let startTick = (beat as any).absolutePlaybackStart;
         if (typeof startTick !== 'number') {
             const cacheTick = tickLookup?.getBeatStart(beat);
-            startTick = (typeof cacheTick === 'number' && cacheTick > 0) ? cacheTick : fallbackStartTick;
+            startTick = typeof cacheTick === 'number' && cacheTick > 0 ? cacheTick : fallbackStartTick;
         }
 
         items.push({
@@ -210,26 +213,26 @@ function uniqueNotes(notes: number[]): number[] {
     return Array.from(new Set(notes)).sort((a, b) => a - b);
 }
 
-export const findBestPianoTransposeIntervals = (
-    midiNumbers: number[]
-): number[] => {
+export const findBestPianoTransposeIntervals = (midiNumbers: number[]): number[] => {
     // Оставляем только уникальные ноты мелодии
     const uniqueMidi = Array.from(new Set(midiNumbers));
-    if (uniqueMidi.length === 0) return [];
+    if (uniqueMidi.length === 0) {
+        return [];
+    }
 
     // Диапазон стандартного пианино (88 клавиш)
     const PIANO_MIN_MIDI = 21; // A0
     const PIANO_MAX_MIDI = 108; // C8
-    
+
     // Индексы черных клавиш в октаве (До=0, До-диез=1, Ре=2, Ре-диез=3...)
     const BLACK_KEYS = new Set([1, 3, 6, 8, 10]);
 
     const results: {
         interval: number;
         unplayableCount: number; // Ноты за пределами клавиатуры
-        blackKeyCount: number;   // Диезы и бемоли
+        blackKeyCount: number; // Диезы и бемоли
     }[] = [];
-    
+
     let minUnplayableCount = Number.POSITIVE_INFINITY;
 
     // Ищем в диапазоне 3 октав (от -36 до +36), чтобы дать музыканту
@@ -262,8 +265,10 @@ export const findBestPianoTransposeIntervals = (
 
     // Фильтруем результаты, оставляя те, что максимально влезают в клавиатуру
     const playableResults = results.filter(r => r.unplayableCount === minUnplayableCount);
-    if (playableResults.length === 0) return [];
-    
+    if (playableResults.length === 0) {
+        return [];
+    }
+
     // Среди них находим минимальное количество черных клавиш
     const minBlackKeyCount = Math.min(...playableResults.map(r => r.blackKeyCount));
 

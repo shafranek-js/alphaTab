@@ -201,6 +201,13 @@ export class PracticePanel implements Mountable {
         this.subscriptions.push(this.api.scoreLoaded.on(() => this.rebuildQueue()));
         this.subscriptions.push(this.api.renderFinished.on(() => this.rebuildQueue()));
         this.subscriptions.push(this.api.postRenderFinished.on(() => this.refresh()));
+        this.subscriptions.push(
+            this.api.playerStateChanged.on(args => {
+                if (args.stopped && this.session.getState().running) {
+                    this.start();
+                }
+            })
+        );
 
         this.rebuildQueue();
         this.updateMidiState(this.lastMidiState);
