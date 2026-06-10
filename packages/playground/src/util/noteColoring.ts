@@ -230,3 +230,8 @@ function getForcedAccidentalOffset(accidentalMode: alphaTab.model.NoteAccidental
 function positiveModulo(value: number, mod: number): number {
     return ((value % mod) + mod) % mod;
 }
+
+export function getSuzukiColor(note: alphaTab.model.Note): string | null {
+    const step = getSuzukiStep(note);
+    return step ? suzukiNoteColors[step]?.rgba ?? null : null;
+}

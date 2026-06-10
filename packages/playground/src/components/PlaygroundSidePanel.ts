@@ -2,7 +2,7 @@ import * as alphaTab from '@coderline/alphatab';
 import { SystemsLayoutMode } from '@coderline/alphatab/DisplaySettings';
 import { css, html, injectStyles, type Mountable, mount, parseHtml } from '../util/Dom';
 import { FontAwesomeIcons } from '../util/Icons';
-import { applySuzukiNoteColors, type NoteColorScheme } from '../util/noteColoring';
+import { applySuzukiNoteColors, getSuzukiColor, type NoteColorScheme } from '../util/noteColoring';
 import { exportGp7 } from './AudioExporter';
 import { IconButton } from './primitives/IconButton';
 import { TrackList } from './TrackList';
@@ -216,6 +216,10 @@ export class PlaygroundSidePanel implements Mountable {
     private barCursorOpacity: number = 0.25;
     private barCursorPosition: 'above' | 'below' = 'below';
     private cursorStyleEl?: HTMLStyleElement;
+    private beatCursorColor: string = '#4040ff';
+    private beatCursorOpacity: number = 0.75;
+    private beatCursorWidth: number = 3;
+    private beatCursorColorFromNote: boolean = false;
     private lightThemeBgColor: string = '#ffffff';
     private darkThemeBgColor: string = '#0f172a';
 
@@ -240,6 +244,23 @@ export class PlaygroundSidePanel implements Mountable {
         this.applyBackgroundColors();
 
         this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
+
+        this.subscriptions.push(
+            api.playedBeatChanged.on(beat => {
+                if (!this.beatCursorColorFromNote || !beat) {
+                    this.setBeatCursorNoteColor(null);
+                    return;
+                }
+                // Skip rests - pick the first note in this beat
+                if (beat.isRest) {
+                    this.setBeatCursorNoteColor(null);
+                    return;
+                }
+                const note = beat.notes?.[0] ?? null;
+                const color = note ? getSuzukiColor(note) : null;
+                this.setBeatCursorNoteColor(color);
+            })
+        );
         this.root = parseHtml(html`
             <aside class="at-side-panel" aria-hidden="true">
                 <div class="cmp-close"></div>
@@ -272,6 +293,12 @@ export class PlaygroundSidePanel implements Mountable {
                 applySuzukiNoteColors(score, this.noteColorScheme === 'suzuki');
                 this.buildSettings();
                 this.saveAllSettings();
+            })
+        );
+        this.subscriptions.push(
+            // Cursors are created/recreated when rendering finishes - reapply our width
+            api.renderFinished.on(_args => {
+                this.applyBeatCursorWidth();
             })
         );
 
@@ -431,6 +458,44 @@ export class PlaygroundSidePanel implements Mountable {
                         this.barCursorPosition = value as 'above' | 'below';
                         this.saveUserSetting('custom', 'barCursorPosition', value);
                         this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
+                    }
+                ),
+                this.beatCursorColorRow(),
+                this.rangeRow(
+                    'Beat Cursor Opacity',
+                    0,
+                    1,
+                    0.05,
+                    this.beatCursorOpacity,
+                    value => {
+                        this.beatCursorOpacity = value;
+                        this.saveUserSetting('custom', 'beatCursorOpacity', value);
+                        this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
+                    },
+                    value => `${Math.round(value * 100)}%`
+                ),
+                this.rangeRow(
+                    'Beat Cursor Width',
+                    1,
+                    10,
+                    1,
+                    this.beatCursorWidth,
+                    value => {
+                        this.beatCursorWidth = value;
+                        this.saveUserSetting('custom', 'beatCursorWidth', value);
+                        this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
+                    },
+                    value => `${value}px`
+                ),
+                this.toggleRow(
+                    'Beat Cursor: Color from Note',
+                    this.beatCursorColorFromNote,
+                    value => {
+                        this.beatCursorColorFromNote = value;
+                        this.saveUserSetting('custom', 'beatCursorColorFromNote', value);
+                        if (!value) {
+                            this.setBeatCursorNoteColor(null);
+                        }
                     }
                 ),
                 this.colorRow('Staff Line', 'display.resources.staffLineColor'),
@@ -1067,6 +1132,22 @@ export class PlaygroundSidePanel implements Mountable {
         return row;
     }
 
+    private beatCursorColorRow(): HTMLElement {
+        const row = this.row('Beat Cursor Color');
+        const control = row.querySelector('.at-settings-control')!;
+        const hex = this.cssColorToHex(this.beatCursorColor);
+        const input = parseHtml(html`
+            <input type="color" value="${hex}" />
+        `) as HTMLInputElement;
+        input.addEventListener('change', () => {
+            this.beatCursorColor = input.value;
+            this.saveUserSetting('custom', 'beatCursorColor', this.beatCursorColor);
+            this.updateCursorStyles(this.barCursorColor, this.barCursorOpacity, this.barCursorPosition);
+        });
+        control.appendChild(input);
+        return row;
+    }
+
     private updateCursorStyles(color: string, opacity: number, position: 'above' | 'below'): void {
         if (!this.cursorStyleEl) {
             this.cursorStyleEl = document.createElement('style');
@@ -1094,6 +1175,38 @@ export class PlaygroundSidePanel implements Mountable {
             }
             ${zIndexStyle}
         `;
+
+        // Beat cursor color: update the CSS custom property used by common.css
+        document.documentElement.style.setProperty('--at-cursor-beat', this.buildBeatCursorCssColor(this.beatCursorColor));
+        // Beat cursor width: element uses ScalableHtmlElementContainer with xscale=100,
+        // so style.width is set as (value * 100)px. We find the element and update it directly.
+        this.applyBeatCursorWidth();
+    }
+
+    private applyBeatCursorWidth(): void {
+        // ScalableHtmlElementContainer sets width as (logicalWidth * 100)px on the element.
+        // We replicate that math here to set the base width without touching transforms.
+        const xscale = 100;
+        const beatEl = document.querySelector<HTMLElement>('.at-cursor-beat');
+        if (beatEl) {
+            beatEl.style.width = `${this.beatCursorWidth * xscale}px`;
+        }
+    }
+
+    private setBeatCursorNoteColor(color: string | null): void {
+        // Update --at-cursor-beat CSS variable; common.css uses it for .at-cursor-beat { background }
+        const root = document.documentElement;
+        const cssColor = color ? this.buildBeatCursorCssColor(color) : this.buildBeatCursorCssColor(this.beatCursorColor);
+        root.style.setProperty('--at-cursor-beat', cssColor);
+    }
+
+    private buildBeatCursorCssColor(hexColor: string): string {
+        // Convert hex to r,g,b and apply beatCursorOpacity
+        const hex = hexColor.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${this.beatCursorOpacity})`;
     }
 
     dispose(): void {
@@ -1164,6 +1277,18 @@ export class PlaygroundSidePanel implements Mountable {
                 }
                 if (data.custom.barCursorPosition) {
                     this.barCursorPosition = data.custom.barCursorPosition as 'above' | 'below';
+                }
+                if (data.custom.beatCursorColor) {
+                    this.beatCursorColor = data.custom.beatCursorColor;
+                }
+                if (data.custom.beatCursorOpacity !== undefined) {
+                    this.beatCursorOpacity = Number(data.custom.beatCursorOpacity);
+                }
+                if (data.custom.beatCursorWidth !== undefined) {
+                    this.beatCursorWidth = Number(data.custom.beatCursorWidth);
+                }
+                if (data.custom.beatCursorColorFromNote !== undefined) {
+                    this.beatCursorColorFromNote = Boolean(data.custom.beatCursorColorFromNote);
                 }
                 if (data.custom.notationElements) {
                     for (const key of Object.keys(data.custom.notationElements)) {
