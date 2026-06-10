@@ -428,19 +428,11 @@ export class TransportBar implements Mountable {
             new IconButton({ icon: Icons.Keyboard, label: 'Keyboard', tooltip: 'Keyboard' })
         );
         this.keyboard.onClick = () => {
-            if (this.bottomPanelMode !== 'practice') {
-                this.isKeyboardVisible = true;
-                this.setBottomPanelMode('practice');
-                this.options.onBottomPanelModeChange?.('practice');
-                this.options.onKeyboardVisibilityChange?.(true);
-                this.saveSetting('isKeyboardVisible', true);
-            } else {
-                const next = !this.isKeyboardVisible;
-                this.isKeyboardVisible = next;
-                this.options.onKeyboardVisibilityChange?.(next);
-                this.saveSetting('isKeyboardVisible', next);
-                this.refreshActiveButtons();
-            }
+            const next = !this.isKeyboardVisible;
+            this.isKeyboardVisible = next;
+            this.options.onKeyboardVisibilityChange?.(next);
+            this.saveSetting('isKeyboardVisible', next);
+            this.refreshActiveButtons();
         };
 
         this.tracks = mount(
@@ -626,7 +618,7 @@ export class TransportBar implements Mountable {
         this.setActiveButton(this.settings, this.sidePanelMode === 'settings');
         this.setActiveButton(this.mediaSync, this.bottomPanelMode === 'media-sync');
         this.setActiveButton(this.practice, this.bottomPanelMode === 'practice');
-        this.setActiveButton(this.keyboard, this.bottomPanelMode === 'practice' && this.isKeyboardVisible);
+        this.setActiveButton(this.keyboard, this.isKeyboardVisible);
     }
 
     private setActiveButton(button: IconButton, active: boolean): void {

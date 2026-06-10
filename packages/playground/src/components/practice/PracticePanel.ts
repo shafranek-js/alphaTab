@@ -244,10 +244,12 @@ export class PracticePanel implements Mountable {
     }
 
     private start(): void {
+        const currentTick = this.api.tickPosition;
         this.rebuildQueue();
         if (this.api.playerState === alphaTab.synth.PlayerState.Playing) {
             this.api.pause();
         }
+        this.session.seekToTick(currentTick);
         const state = this.session.start();
         this.seekToCurrent(state);
         this.feedbackEl.textContent =
@@ -266,9 +268,18 @@ export class PracticePanel implements Mountable {
     }
 
     private rebuildQueue(): void {
+        const currentTick = this.api.tickPosition;
         const beats = getPlayableBeatsFromTracks(this.api.tracks);
         const queue = buildPracticeQueue(beats, this.api.tickCache);
+        const wasRunning = this.session.getState().running;
+
         this.session.setQueue(queue);
+        if (wasRunning) {
+            this.session.seekToTick(currentTick);
+            const state = this.session.start();
+            this.seekToCurrent(state);
+        }
+
         this.overlay.clear();
         this.refresh();
     }

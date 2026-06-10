@@ -108,6 +108,28 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
         this.matchedNotes.clear();
     }
 
+    public seekToTick(tick: number): void {
+        if (this.queue.length === 0) {
+            this.currentIndex = 0;
+            return;
+        }
+
+        let targetIndex = 0;
+        let minDiff = Number.POSITIVE_INFINITY;
+
+        for (let i = 0; i < this.queue.length; i++) {
+            const item = this.queue[i];
+            const diff = Math.abs(item.startTick - tick);
+            if (diff < minDiff) {
+                minDiff = diff;
+                targetIndex = i;
+            }
+        }
+
+        this.currentIndex = targetIndex;
+        this.matchedNotes.clear();
+    }
+
     public start(): PracticeSessionState<TBeat> {
         this.currentIndex = Math.min(this.currentIndex, Math.max(0, this.queue.length - 1));
         this.running = this.queue.length > 0;

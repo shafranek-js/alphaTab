@@ -240,7 +240,6 @@ export class Footer implements Mountable {
     private mediaMode: 'synth' | 'audio' | 'youtube' = 'synth';
     private zoom = 1;
     private isKeyboardVisible = true;
-    private currentBottomPanelMode: PlaygroundBottomPanelMode = null;
 
     constructor(
         private api: alphaTab.AlphaTabApi,
@@ -342,7 +341,7 @@ export class Footer implements Mountable {
                 },
                 onKeyboardVisibilityChange: visible => {
                     this.isKeyboardVisible = visible;
-                    this.keyboardPanel?.setOpen(this.currentBottomPanelMode === 'practice' && visible);
+                    this.keyboardPanel?.setOpen(visible);
                 }
             })
         );
@@ -350,9 +349,8 @@ export class Footer implements Mountable {
     }
 
     setBottomPanelMode(mode: PlaygroundBottomPanelMode): void {
-        this.currentBottomPanelMode = mode;
         this.mediaSyncPanel.classList.toggle('open', mode === 'media-sync');
-        this.keyboardPanel?.setOpen(mode === 'practice' && this.isKeyboardVisible);
+        this.keyboardPanel?.setOpen(this.isKeyboardVisible);
         this.practicePanel?.setOpen(mode === 'practice');
         this.transport.setBottomPanelMode(mode);
     }

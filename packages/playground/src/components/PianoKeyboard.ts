@@ -119,10 +119,48 @@ injectStyles(
         border-color: var(--at-accent) !important;
         background: var(--at-kb-white-pressed) !important;
         box-shadow: inset 0 0 0 2px var(--at-accent), inset 0 6px 0 var(--at-accent) !important;
+        transform: translateY(2px);
+        animation: key-press-white 0.25s cubic-bezier(0.1, 0.8, 0.3, 1);
     }
     .black-key.demo-highlight {
         background: var(--at-kb-black-pressed) !important;
         box-shadow: inset 0 0 0 2px var(--at-accent) !important;
+        transform: translateY(2px);
+        animation: key-press-black 0.25s cubic-bezier(0.1, 0.8, 0.3, 1);
+    }
+    @keyframes key-press-white {
+        0% {
+            transform: translateY(0) scale(1);
+            filter: brightness(1.4);
+            box-shadow: inset 0 0 0 2px var(--at-accent), inset 0 6px 0 var(--at-accent), 0 0 15px var(--at-accent) !important;
+        }
+        40% {
+            transform: translateY(3px) scale(0.98);
+            filter: brightness(1.2);
+            box-shadow: inset 0 0 0 2px var(--at-accent), inset 0 6px 0 var(--at-accent), 0 0 10px var(--at-accent) !important;
+        }
+        100% {
+            transform: translateY(2px) scale(1);
+            filter: brightness(1);
+            box-shadow: inset 0 0 0 2px var(--at-accent), inset 0 6px 0 var(--at-accent) !important;
+        }
+    }
+    @keyframes key-press-black {
+        0% {
+            transform: translateY(0) scale(1);
+            filter: brightness(1.4);
+            box-shadow: inset 0 0 0 2px var(--at-accent), 0 0 15px var(--at-accent) !important;
+        }
+        40% {
+            transform: translateY(3px) scale(0.98);
+            filter: brightness(1.2);
+            box-shadow: inset 0 0 0 2px var(--at-accent), 0 0 10px var(--at-accent) !important;
+        }
+        100% {
+            transform: translateY(2px) scale(1);
+            filter: brightness(1);
+            box-shadow: inset 0 0 0 2px var(--at-accent) !important;
+        }
     }
     .piano-key.hint-highlight {
         border-color: #3b82f6 !important;
@@ -472,8 +510,9 @@ export class PianoKeyboard implements Mountable {
 
         for (const note of beat.notes) {
             if (note.realValue > 0) {
-                const keyEl = this.root.querySelector(`[data-midi="${note.realValue}"]`);
+                const keyEl = this.root.querySelector(`[data-midi="${note.realValue}"]`) as HTMLElement;
                 if (keyEl) {
+                    void keyEl.offsetWidth; // Force reflow to restart CSS keyframe animation
                     keyEl.classList.add('demo-highlight');
                 }
             }
