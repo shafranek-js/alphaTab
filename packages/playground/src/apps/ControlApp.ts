@@ -89,6 +89,7 @@ export function buildSettings(options: ControlAppOptions, viewport: HTMLElement)
         },
         player: {
             playerMode: alphaTab.PlayerMode.EnabledAutomatic,
+            enableElementHighlighting: true,
             scrollOffsetX: -10,
             scrollOffsetY: -20,
             soundFont: options.soundFont ?? Paths.soundFont,
