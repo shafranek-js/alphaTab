@@ -56,10 +56,16 @@ export function buildPracticeQueue<TBeat extends PracticeBeatSource>(
             continue;
         }
 
+        let startTick = (beat as any).absolutePlaybackStart;
+        if (typeof startTick !== 'number') {
+            const cacheTick = tickLookup?.getBeatStart(beat);
+            startTick = (typeof cacheTick === 'number' && cacheTick > 0) ? cacheTick : fallbackStartTick;
+        }
+
         items.push({
             beat,
             expectedNotes,
-            startTick: tickLookup?.getBeatStart(beat) ?? fallbackStartTick
+            startTick
         });
         fallbackStartTick++;
     }
