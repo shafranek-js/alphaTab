@@ -83,9 +83,13 @@ export function buildSettings(options: ControlAppOptions, viewport: HTMLElement)
         core: {
             includeNoteBounds: true,
             logLevel: (params.get('loglevel') ?? 'info') as alphaTab.json.CoreSettingsJson['logLevel'],
-            engine: params.get('engine') ?? 'svg',
+            engine: params.get('engine') ?? 'html5',
             file: hasSavedScore ? null : (options.file ?? Paths.defaultScore),
             fontDirectory: options.fontDirectory ?? Paths.fontDirectory
+        },
+        display: {
+            scale: 2,
+            layoutMode: alphaTab.LayoutMode.Parchment
         },
         player: {
             playerMode: alphaTab.PlayerMode.EnabledAutomatic,
@@ -96,6 +100,30 @@ export function buildSettings(options: ControlAppOptions, viewport: HTMLElement)
             scrollElement: viewport
         }
     } satisfies alphaTab.json.SettingsJson);
+
+    // Apply dark theme colors if no settings or dark theme is active
+    const savedSettingsStr = typeof localStorage !== 'undefined' ? localStorage.getItem('at-playground-settings') : null;
+    let isDark = true;
+    if (savedSettingsStr) {
+        try {
+            const data = JSON.parse(savedSettingsStr);
+            isDark = data?.custom?.theme !== 'light';
+        } catch {}
+    }
+
+    if (isDark) {
+        settings.display.resources.staffLineColor = new alphaTab.model.Color(200, 200, 200, 100);
+        settings.display.resources.barSeparatorColor = new alphaTab.model.Color(200, 200, 200, 150);
+        settings.display.resources.barNumberColor = new alphaTab.model.Color(150, 150, 150, 255);
+        settings.display.resources.mainGlyphColor = new alphaTab.model.Color(240, 240, 240, 255);
+        settings.display.resources.secondaryGlyphColor = new alphaTab.model.Color(180, 180, 180, 255);
+        settings.display.resources.scoreInfoColor = new alphaTab.model.Color(240, 240, 240, 255);
+    }
+
+    // Set Copyright and Watermark font sizes to 0 to hide them by default
+    settings.display.resources.copyrightFont.size = 0;
+    settings.display.resources.watermarkFont.size = 0;
+
     if (options.settings) {
         settings.fillFromJson(options.settings);
     }

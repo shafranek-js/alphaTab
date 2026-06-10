@@ -207,14 +207,14 @@ export class PlaygroundSidePanel implements Mountable {
     private tracksView: HTMLElement;
     private closeButton: IconButton;
     private currentMode: PlaygroundSidePanelMode = null;
-    private noteColorScheme: NoteColorScheme = 'off';
+    private noteColorScheme: NoteColorScheme = 'suzuki';
     private subscriptions: (() => void)[] = [];
     private originalRender?: any;
     private originalRenderScore?: any;
     private originalRenderTracks?: any;
     private barCursorColor: string = '#ffff00';
     private barCursorOpacity: number = 0.25;
-    private barCursorPosition: 'above' | 'below' = 'above';
+    private barCursorPosition: 'above' | 'below' = 'below';
     private cursorStyleEl?: HTMLStyleElement;
     private lightThemeBgColor: string = '#ffffff';
     private darkThemeBgColor: string = '#0f172a';
@@ -228,11 +228,11 @@ export class PlaygroundSidePanel implements Mountable {
             this.barCursorColor = localStorage.getItem('at-playground-bar-cursor-color') ?? '#ffff00';
             this.barCursorOpacity = Number(localStorage.getItem('at-playground-bar-cursor-opacity') ?? '0.25');
             this.barCursorPosition =
-                (localStorage.getItem('at-playground-bar-cursor-position') as 'above' | 'below') ?? 'above';
+                (localStorage.getItem('at-playground-bar-cursor-position') as 'above' | 'below') ?? 'below';
         }
 
         const savedTheme = this.getSavedCustomSetting('theme');
-        if (savedTheme === 'dark') {
+        if (savedTheme === 'dark' || !savedTheme) {
             document.documentElement.classList.add('dark-theme');
         } else if (savedTheme === 'light') {
             document.documentElement.classList.remove('dark-theme');
