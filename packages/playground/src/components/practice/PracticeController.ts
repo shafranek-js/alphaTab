@@ -3,6 +3,7 @@ import type * as alphaTab from '@coderline/alphatab';
 export interface PracticeNoteSource {
     realValue: number;
     isVisible?: boolean;
+    isTieDestination?: boolean;
 }
 
 export interface PracticeBeatSource {
@@ -51,7 +52,7 @@ export function buildPracticeQueue<TBeat extends PracticeBeatSource>(
 
         const expectedNotes = uniqueNotes(
             beat.notes
-                .filter(note => note.isVisible !== false)
+                .filter(note => note.isVisible !== false && note.isTieDestination !== true)
                 .map(note => note.realValue)
                 .filter(value => value > 0)
         );

@@ -502,18 +502,51 @@ export class PianoKeyboard implements Mountable {
     }
 
     private highlightPlayedBeat(beat: alphaTab.model.Beat): void {
-        this.clearHighlights();
-
         if (!beat || beat.isRest) {
+            this.clearHighlights();
             return;
         }
 
+        // Get the active MIDI note values and tie destinations in the new beat
+        const activeMidiNotes = new Set<number>();
+        const tieDestinations = new Set<number>();
+        for (const note of beat.notes) {
+            if (note.realValue > 0) {
+                activeMidiNotes.add(note.realValue);
+                if (note.isTieDestination) {
+                    tieDestinations.add(note.realValue);
+                }
+            }
+        }
+
+        // Remove highlight from any keys that are not active in the new beat
+        for (const el of this.root.querySelectorAll('.piano-key.demo-highlight')) {
+            const midi = Number(el.getAttribute('data-midi'));
+            if (!activeMidiNotes.has(midi)) {
+                el.classList.remove('demo-highlight');
+            }
+        }
+
+        // Highlight the active keys, handling animation reflow only for new strikes
         for (const note of beat.notes) {
             if (note.realValue > 0) {
                 const keyEl = this.root.querySelector(`[data-midi="${note.realValue}"]`) as HTMLElement;
                 if (keyEl) {
-                    void keyEl.offsetWidth; // Force reflow to restart CSS keyframe animation
-                    keyEl.classList.add('demo-highlight');
+                    const isAlreadyHighlighted = keyEl.classList.contains('demo-highlight');
+                    const isTie = tieDestinations.has(note.realValue);
+
+                    if (!isAlreadyHighlighted) {
+                        // Brand new key press
+                        void keyEl.offsetWidth; // Force reflow to start CSS animation
+                        keyEl.classList.add('demo-highlight');
+                    } else if (!isTie) {
+                        // Key is already highlighted but struck again
+                        keyEl.classList.remove('demo-highlight');
+                        void keyEl.offsetWidth; // Force reflow to restart CSS animation
+                        keyEl.classList.add('demo-highlight');
+                    } else {
+                        // Tied note continuation: keep highlighted without restarting the strike animation
+                    }
                 }
             }
         }

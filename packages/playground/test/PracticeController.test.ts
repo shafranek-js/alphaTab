@@ -116,6 +116,26 @@ describe('PracticeController', () => {
             }
         });
     });
+
+    it('skips tie destination notes in practice queue', () => {
+        const b1 = {
+            isRest: false,
+            notes: [
+                { realValue: 60, isTieDestination: false },
+                { realValue: 64, isTieDestination: true }
+            ]
+        };
+        const b2 = {
+            isRest: false,
+            notes: [
+                { realValue: 64, isTieDestination: true }
+            ]
+        };
+        const queue = buildPracticeQueue([b1, b2]);
+
+        expect(queue).toHaveLength(1); // b2 should be skipped because all notes are tie destinations
+        expect(queue[0].expectedNotes).toEqual([60]); // b1 should only expect 60, since 64 is a tie destination
+    });
 });
 
 function beat(notes: number[], isRest = false): PracticeBeatSource {
