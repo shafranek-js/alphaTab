@@ -785,13 +785,19 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
     }
 
     private _highlightedElements: HTMLElement[] = [];
-    public highlightElements(groupId: string, masterBarIndex: number): void {
+    public highlightElements(groupId: string, masterBarIndex: number, duration?: number): void {
         const element = this._barToElementLookup.get(masterBarIndex);
         if (element) {
             const elementsToHighlight: HTMLCollection = element.getElementsByClassName(groupId);
             for (let i: number = 0; i < elementsToHighlight.length; i++) {
-                elementsToHighlight.item(i)!.classList.add('at-highlight');
-                this._highlightedElements.push(elementsToHighlight.item(i) as HTMLElement);
+                const el = elementsToHighlight.item(i) as HTMLElement;
+                if (duration && duration > 0) {
+                    el.style.setProperty('--at-highlight-duration', `${duration}ms`);
+                } else {
+                    el.style.removeProperty('--at-highlight-duration');
+                }
+                el.classList.add('at-highlight');
+                this._highlightedElements.push(el);
             }
         }
     }
@@ -803,6 +809,7 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
         }
         for (const element of highlightedElements) {
             element.classList.remove('at-highlight');
+            element.style.removeProperty('--at-highlight-duration');
         }
         this._highlightedElements = [];
     }

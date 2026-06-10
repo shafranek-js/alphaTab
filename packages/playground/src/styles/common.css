@@ -102,7 +102,7 @@ button {
 .at-highlight {
     transform-box: fill-box;
     transform-origin: center;
-    animation: stave-note-strike 0.25s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+    animation: stave-note-strike var(--at-highlight-duration, 0.25s) cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
 }
 
 @keyframes stave-note-strike {

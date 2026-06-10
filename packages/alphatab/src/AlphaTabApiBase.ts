@@ -2486,7 +2486,7 @@ export class AlphaTabApiBase<TSettings> {
             if (this.settings.player.enableElementHighlighting) {
                 for (const highlight of beatsToHighlight) {
                     const className: string = BeatContainerGlyph.getGroupId(highlight.beat);
-                    this.uiFacade.highlightElements(className, beat.voice.bar.index);
+                    (this.uiFacade as any).highlightElements(className, beat.voice.bar.index, duration);
                 }
             }
 
