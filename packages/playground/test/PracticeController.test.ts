@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PracticeSession, buildPracticeQueue, type PracticeBeatSource, findBestPianoTransposeIntervals } from '../src/components/practice/PracticeController';
+import {
+    buildPracticeQueue,
+    findBestPianoTransposeIntervals,
+    type PracticeBeatSource,
+    PracticeSession
+} from '../src/components/practice/PracticeController';
 
 describe('PracticeController', () => {
     it('builds a queue from playable beats and skips rests', () => {
@@ -54,6 +59,28 @@ describe('PracticeController', () => {
         expect(wrong.type).toBe('wrong');
         expect(wrong.state.currentIndex).toBe(0);
         expect(wrong.state.matchedNotes).toEqual([]);
+    });
+
+    it('can seek to the beat closest to a given tick', () => {
+        const session = new PracticeSession();
+        const b1 = beat([60]);
+        (b1 as any).absolutePlaybackStart = 1000;
+        const b2 = beat([62]);
+        (b2 as any).absolutePlaybackStart = 2000;
+        const b3 = beat([64]);
+        (b3 as any).absolutePlaybackStart = 3000;
+
+        session.setQueue(buildPracticeQueue([b1, b2, b3]));
+        session.start();
+
+        session.seekToTick(1800);
+        expect(session.getState().currentIndex).toBe(1);
+
+        session.seekToTick(900);
+        expect(session.getState().currentIndex).toBe(0);
+
+        session.seekToTick(3500);
+        expect(session.getState().currentIndex).toBe(2);
     });
 
     describe('findBestPianoTransposeIntervals', () => {
