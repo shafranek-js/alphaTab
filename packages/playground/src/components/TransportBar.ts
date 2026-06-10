@@ -275,6 +275,7 @@ export class TransportBar implements Mountable {
     private sidePanelMode: PlaygroundSidePanelMode;
     private bottomPanelMode: PlaygroundBottomPanelMode;
     private isKeyboardVisible = true;
+    private isPlayerReady = false;
     private subscriptions: (() => void)[] = [];
     private previousTime = -1;
     private flashTimeoutId = 0;
@@ -559,7 +560,8 @@ export class TransportBar implements Mountable {
         );
         this.subscriptions.push(
             api.playerReady.on(() => {
-                this.playPause.setEnabled(true);
+                this.isPlayerReady = true;
+                this.updatePlayPauseEnabledState();
                 this.stop.setEnabled(true);
                 this.transposeDownBtn.removeAttribute('disabled');
                 this.transposeUpBtn.removeAttribute('disabled');
@@ -611,6 +613,12 @@ export class TransportBar implements Mountable {
     setBottomPanelMode(mode: PlaygroundBottomPanelMode): void {
         this.bottomPanelMode = mode;
         this.refreshActiveButtons();
+        this.updatePlayPauseEnabledState();
+    }
+
+    private updatePlayPauseEnabledState(): void {
+        const isPractice = this.bottomPanelMode === 'practice';
+        this.playPause.setEnabled(this.isPlayerReady && !isPractice);
     }
 
     private refreshActiveButtons(): void {
