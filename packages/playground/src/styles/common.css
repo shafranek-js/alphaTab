@@ -99,11 +99,6 @@ button {
     width: 3px;
 }
 
-.at-highlight * {
-    fill: var(--at-highlight);
-    stroke: var(--at-highlight);
-}
-
 .at-highlight {
     transform-box: fill-box;
     transform-origin: center;
