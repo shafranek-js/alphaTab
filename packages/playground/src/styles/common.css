@@ -105,6 +105,13 @@ button {
     animation: stave-note-strike var(--at-highlight-duration, 0.25s) cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
 }
 
+.at-highlight-sustain {
+    transform-box: fill-box;
+    transform-origin: center;
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px var(--at-highlight));
+}
+
 @keyframes stave-note-strike {
     0% {
         transform: scale(1);

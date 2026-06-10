@@ -2485,8 +2485,28 @@ export class AlphaTabApiBase<TSettings> {
         if (isPlayingUpdate) {
             if (this.settings.player.enableElementHighlighting) {
                 for (const highlight of beatsToHighlight) {
-                    const className: string = BeatContainerGlyph.getGroupId(highlight.beat);
-                    (this.uiFacade as any).highlightElements(className, beat.voice.bar.index, duration);
+                    const hBeat = highlight.beat;
+                    const className: string = BeatContainerGlyph.getGroupId(hBeat);
+                    const isSustain = hBeat.notes.length > 0 && hBeat.notes.every(n => n.isTieDestination);
+                    
+                    let highlightDuration = duration;
+                    if (!isSustain && hBeat.playbackDuration > 0) {
+                        let maxTiedTicks = hBeat.playbackDuration;
+                        for (const note of hBeat.notes) {
+                            let currentNote = note;
+                            while (currentNote.tieDestination) {
+                                currentNote = currentNote.tieDestination;
+                            }
+                            const endBeat = currentNote.beat;
+                            const tiedTicks = (endBeat.absolutePlaybackStart + endBeat.playbackDuration) - hBeat.absolutePlaybackStart;
+                            if (tiedTicks > maxTiedTicks) {
+                                maxTiedTicks = tiedTicks;
+                            }
+                        }
+                        highlightDuration = duration * (maxTiedTicks / hBeat.playbackDuration);
+                    }
+                    
+                    (this.uiFacade as any).highlightElements(className, beat.voice.bar.index, highlightDuration, isSustain);
                 }
             }
 
