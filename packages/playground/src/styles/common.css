@@ -108,14 +108,14 @@ button {
 @keyframes stave-note-strike {
     0% {
         transform: scale(1);
-        filter: brightness(1.5) drop-shadow(0 0 4px var(--at-highlight));
+        filter: drop-shadow(0 0 4px var(--at-highlight));
     }
     30% {
         transform: scale(1.15);
-        filter: brightness(1.8) drop-shadow(0 0 10px var(--at-highlight));
+        filter: drop-shadow(0 0 10px var(--at-highlight));
     }
     100% {
         transform: scale(1);
-        filter: brightness(1.1) drop-shadow(0 0 2px var(--at-highlight));
+        filter: drop-shadow(0 0 2px var(--at-highlight));
     }
 }
