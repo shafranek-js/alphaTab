@@ -83,7 +83,7 @@ export function buildSettings(options: ControlAppOptions, viewport: HTMLElement)
         core: {
             includeNoteBounds: true,
             logLevel: (params.get('loglevel') ?? 'info') as alphaTab.json.CoreSettingsJson['logLevel'],
-            engine: params.get('engine') ?? 'html5',
+            engine: params.get('engine') ?? 'svg',
             file: hasSavedScore ? null : (options.file ?? Paths.defaultScore),
             fontDirectory: options.fontDirectory ?? Paths.fontDirectory
         },
