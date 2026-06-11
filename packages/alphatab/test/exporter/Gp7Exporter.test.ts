@@ -254,7 +254,7 @@ describe('Gp7ExporterTest', () => {
         ].join('\n');
 
         const expected = await TestPlatform.loadFileAsString('test-data/exporter/articulations.source');
-        if (expected !== sourceCode) {
+        if (normalizeLineEndings(expected) !== sourceCode) {
             await TestPlatform.saveFileAsString('test-data/exporter/articulations.source.new', sourceCode);
             throw new Error('Articulations have changed, update the PercussionMapper and update the snapshot file');
         }
@@ -411,7 +411,7 @@ describe('Gp7ExporterTest', () => {
         const sourceCode = ['// BEGIN generated', instrumentSetCode, '// END generated'].join('\n');
 
         const expected = await TestPlatform.loadFileAsString('test-data/exporter/soundmapper.source');
-        if (expected !== sourceCode) {
+        if (normalizeLineEndings(expected) !== sourceCode) {
             await TestPlatform.saveFileAsString('test-data/exporter/soundmapper.source.new', sourceCode);
             throw new Error('RSE instrument set has, update the GpifSoundMapper and update the snapshot file');
         }
@@ -423,6 +423,10 @@ describe('Gp7ExporterTest', () => {
         const xml = new XmlDocument();
         xml.parse(IOHelper.toString(gpifData, ''));
         return readFullInstrumentSet(xml);
+    }
+
+    function normalizeLineEndings(value: string): string {
+        return value.replace(/\r\n/g, '\n');
     }
 
     it('drumkit-roundtrip', async () => {

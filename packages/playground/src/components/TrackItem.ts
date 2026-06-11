@@ -1,6 +1,6 @@
 import * as alphaTab from '@coderline/alphatab';
 import { type Mountable, css, html, injectStyles, parseHtml } from '../util/Dom';
-import { FontAwesomeIcons, fontAwesomeIcon } from '../util/Icons';
+import { FontAwesomeIcons, Icons, fontAwesomeIcon, icon } from '../util/Icons';
 import { saveTrackSettings } from '../util/trackSettings';
 import { generalMidiInstruments, generalMidiDrums } from '../util/midiInstruments';
 
@@ -278,7 +278,7 @@ export class TrackItem implements Mountable {
         }
         this.transposeLockBtn.classList.toggle('active', savedTransposeLocked);
         this.transposeLockBtn.classList.toggle('success', savedTransposeLocked);
-        this.transposeLockBtn.textContent = savedTransposeLocked ? '🔒' : '🔓';
+        this.renderTransposeLockIcon(savedTransposeLocked);
 
         this.instrument.addEventListener('change', () => {
             const program = Number(this.instrument.value);
@@ -408,7 +408,7 @@ export class TrackItem implements Mountable {
             const active = !this.transposeLockBtn.classList.contains('active');
             this.transposeLockBtn.classList.toggle('active', active);
             this.transposeLockBtn.classList.toggle('success', active);
-            this.transposeLockBtn.textContent = active ? '🔒' : '🔓';
+            this.renderTransposeLockIcon(active);
             saveTrackSettings(this.api);
         });
         this.transposeAudio.addEventListener('input', e => {
@@ -543,8 +543,12 @@ export class TrackItem implements Mountable {
         let unsubscribeFailed: (() => void) | null = null;
 
         const cleanUp = () => {
-            if (unsubscribeLoaded) unsubscribeLoaded();
-            if (unsubscribeFailed) unsubscribeFailed();
+            if (unsubscribeLoaded) {
+                unsubscribeLoaded();
+            }
+            if (unsubscribeFailed) {
+                unsubscribeFailed();
+            }
         };
 
         unsubscribeLoaded = this.api.midiLoaded.on(() => {
@@ -560,5 +564,9 @@ export class TrackItem implements Mountable {
         });
 
         this.api.loadMidiForScore();
+    }
+
+    private renderTransposeLockIcon(locked: boolean): void {
+        this.transposeLockBtn.replaceChildren(icon(locked ? Icons.Lock : Icons.Unlock));
     }
 }

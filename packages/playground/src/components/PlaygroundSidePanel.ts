@@ -740,12 +740,15 @@ export class PlaygroundSidePanel implements Mountable {
         return row;
     }
 
-    private numberRow(label: string, initialValue: number, onChange: (value: number) => void): HTMLElement {
+    private numberRow(label: string, initialValue: number, onChange: (value: number) => void, min?: number): HTMLElement {
         const row = this.row(label);
         const control = row.querySelector('.at-settings-control')!;
         const input = parseHtml(html`
             <input type="number" step="1" value="${initialValue}" />
         `) as HTMLInputElement;
+        if (min !== undefined) {
+            input.min = String(min);
+        }
         input.addEventListener('change', () => {
             onChange(input.valueAsNumber);
             input.value = String(input.valueAsNumber);
@@ -766,7 +769,7 @@ export class PlaygroundSidePanel implements Mountable {
             this.saveUserSetting('settings', path, value);
             this.update(render);
             afterUpdate?.();
-        });
+        }, min);
     }
 
     private paddingRow(label: string, index: number): HTMLElement {
@@ -1382,7 +1385,7 @@ export class PlaygroundSidePanel implements Mountable {
         }
     }
 
-    private saveUserSetting(category: string, key: string, value: any): void {
+    private saveUserSetting(_category: string, _key: string, _value: any): void {
         this.saveAllSettings();
     }
 

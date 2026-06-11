@@ -10,10 +10,14 @@ export function saveTrackSettings(api: alphaTab.AlphaTabApi): void {
     const trackElements = document.querySelectorAll('.track-item');
     for (const el of trackElements) {
         const checkbox = el.querySelector<HTMLInputElement>('input[type="checkbox"]');
-        if (!checkbox) continue;
+        if (!checkbox) {
+            continue;
+        }
         const index = Number(checkbox.id.replace('t-', ''));
         const track = score.tracks[index];
-        if (!track) continue;
+        if (!track) {
+            continue;
+        }
 
         const volumeEl = el.querySelector<HTMLInputElement>('.track-volume');
         const balanceEl = el.querySelector<HTMLInputElement>('.track-balance');
@@ -28,7 +32,9 @@ export function saveTrackSettings(api: alphaTab.AlphaTabApi): void {
         const staves: any[] = [];
         staffElements.forEach((staffEl, sIdx) => {
             const staff = track.staves[sIdx];
-            if (!staff) return;
+            if (!staff) {
+                return;
+            }
             const buttons = staffEl.querySelectorAll<HTMLButtonElement>('.staff-button');
             let showStandardNotation = staff.showStandardNotation;
             let showTablature = staff.showTablature;
@@ -37,10 +43,18 @@ export function saveTrackSettings(api: alphaTab.AlphaTabApi): void {
             buttons.forEach(btn => {
                 const opt = btn.dataset.option;
                 const active = btn.classList.contains('active');
-                if (opt === 'showStandardNotation') showStandardNotation = active;
-                if (opt === 'showTablature') showTablature = active;
-                if (opt === 'showSlash') showSlash = active;
-                if (opt === 'showNumbered') showNumbered = active;
+                if (opt === 'showStandardNotation') {
+                    showStandardNotation = active;
+                }
+                if (opt === 'showTablature') {
+                    showTablature = active;
+                }
+                if (opt === 'showSlash') {
+                    showSlash = active;
+                }
+                if (opt === 'showNumbered') {
+                    showNumbered = active;
+                }
             });
             staves.push({
                 index: staff.index,

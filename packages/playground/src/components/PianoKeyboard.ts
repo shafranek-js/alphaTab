@@ -174,7 +174,7 @@ injectStyles(
         background: #2563eb !important;
         box-shadow: inset 0 0 0 2px #3b82f6 !important;
     }
-    
+
     .key-shortcut {
         display: inline-block;
         background: rgba(0, 0, 0, 0.06);
@@ -190,7 +190,7 @@ injectStyles(
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
+
     :root {
         --at-kb-bg: #fff;
         --at-kb-white-bg: linear-gradient(180deg, #ffffff, #f1f5f3);

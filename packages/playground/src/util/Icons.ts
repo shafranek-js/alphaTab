@@ -13,6 +13,7 @@ import {
     Headphones,
     Hourglass,
     ListChecks,
+    Lock,
     MapPin,
     Menu,
     Metronome,
@@ -32,6 +33,7 @@ import {
     SkipBack,
     Timeline,
     Undo,
+    Unlock,
     Volume2,
     Waves,
     X,
@@ -110,8 +112,10 @@ export const Icons = {
     TrackDrum: Drum as IconNode,
     TrackPiano: Piano as IconNode,
     Keyboard: Keyboard as IconNode,
+    Lock: Lock as IconNode,
     TrackVoice: Mic as IconNode,
-    Menu: Menu as IconNode
+    Menu: Menu as IconNode,
+    Unlock: Unlock as IconNode
 } satisfies Record<string, IconNode>;
 
 export const FontAwesomeIcons = {

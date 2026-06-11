@@ -149,8 +149,10 @@ export interface IUiFacade<TSettings> {
      * Tells the UI layer to highlight the music notation elements with the given ID.
      * @param groupId The group id that identifies the elements to be highlighted.
      * @param masterBarIndex The index of the related masterbar of the highlighted group.
+     * @param duration The optional highlight animation duration in milliseconds.
+     * @param isSustain Whether this highlight represents a tied-note sustain.
      */
-    highlightElements(groupId: string, masterBarIndex: number): void;
+    highlightElements(groupId: string, masterBarIndex: number, duration?: number, isSustain?: boolean): void;
 
     /**
      * Creates a new UI element that is used to display the selection rectangle.

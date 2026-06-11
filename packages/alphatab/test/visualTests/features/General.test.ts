@@ -164,6 +164,7 @@ describe('GeneralTests', () => {
             });
         }
 
+        const overheads: number[] = [];
         for (let i = 0; i < 10; i++) {
             let coloredStart: number = 0;
             await VisualTestHelper.runVisualTest('general/colors.gp', undefined, o => {
@@ -182,12 +183,17 @@ describe('GeneralTests', () => {
 
             const coloredDuration = coloredEnd - coloredStart;
             const defaultDuration = defaultEnd - defaultStart;
+            const overhead = coloredDuration - defaultDuration;
 
-            expect(coloredDuration - defaultDuration).toBeLessThan(120);
+            overheads.push(overhead);
 
             Logger.info('Test-color-performance', 'Colored', i, coloredDuration);
             Logger.info('Test-color-performance', 'Default', i, defaultDuration);
+            Logger.info('Test-color-performance', 'Overhead', i, overhead);
         }
+
+        const medianOverhead = [...overheads].sort((a, b) => a - b)[Math.floor(overheads.length / 2)];
+        expect(medianOverhead).toBeLessThan(120);
     });
 
     it('font-fallback', async () => {

@@ -2488,7 +2488,7 @@ export class AlphaTabApiBase<TSettings> {
                     const hBeat = highlight.beat;
                     const className: string = BeatContainerGlyph.getGroupId(hBeat);
                     const isSustain = hBeat.notes.length > 0 && hBeat.notes.every(n => n.isTieDestination);
-                    
+
                     let highlightDuration = duration;
                     if (!isSustain && hBeat.playbackDuration > 0) {
                         let maxTiedTicks = hBeat.playbackDuration;
@@ -2505,8 +2505,8 @@ export class AlphaTabApiBase<TSettings> {
                         }
                         highlightDuration = duration * (maxTiedTicks / hBeat.playbackDuration);
                     }
-                    
-                    (this.uiFacade as any).highlightElements(className, beat.voice.bar.index, highlightDuration, isSustain);
+
+                    this.uiFacade.highlightElements(className, beat.voice.bar.index, highlightDuration, isSustain);
                 }
             }
 

@@ -1495,7 +1495,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                                         // so the right channel is intentionally skipped to avoid doubling volume.
                                         Logger.debug(
                                             'AlphaSynth',
-                                            `Skipping right stereo sample ${shdr.sampleName} for preset ${phdr.presetName} (bank ${preset.bank} program ${preset.presetNumber}) — left channel used as mono`
+                                            `Skipping right stereo sample ${shdr.sampleName} for preset ${phdr.presetName} (bank ${preset.bank} program ${preset.presetNumber}) - left channel used as mono`
                                         );
                                         zoneRegion.samples = new Float32Array(0);
                                     } else {
