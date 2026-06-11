@@ -297,7 +297,7 @@ export class TransportBar implements Mountable {
             <div class="at-transport">
                 <div class="at-transport-left">
                     <div class="cmp-open-file"></div>
-                    <input class="at-file-input" type="file" accept=".gp,.gp3,.gp4,.gp5,.gpx,.musicxml,.mxml,.xml,.capx" />
+                    <input class="at-file-input" type="file" accept=".gp,.gp3,.gp4,.gp5,.gpx,.musicxml,.mxml,.xml,.capx,.mid,.midi" />
                     <div class="cmp-play-pause"></div>
                     <div class="cmp-stop"></div>
                     <div class="at-loading-slot hidden">

@@ -5,6 +5,7 @@ import { CapellaImporter } from '@coderline/alphatab/importer/CapellaImporter';
 import { Gp3To5Importer } from '@coderline/alphatab/importer/Gp3To5Importer';
 import { Gp7To8Importer } from '@coderline/alphatab/importer/Gp7To8Importer';
 import { GpxImporter } from '@coderline/alphatab/importer/GpxImporter';
+import { MidiImporter } from '@coderline/alphatab/importer/MidiImporter';
 import { MusicXmlImporter } from '@coderline/alphatab/importer/MusicXmlImporter';
 import type { ScoreImporter } from '@coderline/alphatab/importer/ScoreImporter';
 import { LayoutMode } from '@coderline/alphatab/LayoutMode';
@@ -395,6 +396,7 @@ export class Environment {
             new Gp7To8Importer(),
             new MusicXmlImporter(),
             new CapellaImporter(),
+            new MidiImporter(),
             new AlphaTexImporter()
         ];
     }
