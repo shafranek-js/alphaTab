@@ -1,8 +1,8 @@
 import * as alphaTab from '@coderline/alphatab';
-import { type Mountable, css, html, injectStyles, parseHtml } from '../util/Dom';
-import { FontAwesomeIcons, Icons, fontAwesomeIcon, icon } from '../util/Icons';
+import { css, html, injectStyles, type Mountable, parseHtml } from '../util/Dom';
+import { FontAwesomeIcons, fontAwesomeIcon, Icons, icon } from '../util/Icons';
+import { generalMidiDrums, generalMidiInstruments } from '../util/midiInstruments';
 import { saveTrackSettings } from '../util/trackSettings';
-import { generalMidiInstruments, generalMidiDrums } from '../util/midiInstruments';
 
 injectStyles(
     'TrackItem',
@@ -41,6 +41,13 @@ injectStyles(
     }
     .settings-item-control input[type='range'] {
         width: 8rem;
+    }
+    .track-transpose-value {
+        min-width: 2rem;
+        text-align: right;
+        font-size: 12px;
+        color: var(--at-text);
+        opacity: 0.72;
     }
     .settings-item-control.button-group {
         gap: 0;
@@ -142,6 +149,8 @@ export class TrackItem implements Mountable {
     private volume: HTMLInputElement;
     private transposeFull: HTMLInputElement;
     private transposeAudio: HTMLInputElement;
+    private transposeFullValue: HTMLElement;
+    private transposeAudioValue: HTMLElement;
     private instrument: HTMLSelectElement;
     private balance: HTMLInputElement;
     private transposeLockBtn: HTMLButtonElement;
@@ -186,6 +195,7 @@ export class TrackItem implements Mountable {
                     <div class="settings-item-label" title="Fully transposes the track (audio and notation)">Transpose Full</div>
                     <div class="settings-item-control">
                         <input class="track-transpose-full" type="range" min="-24" max="12" step="1" value="0" />
+                        <span class="track-transpose-value track-transpose-full-value">0</span>
                     </div>
                 </div>
                 <div class="settings-item">
@@ -198,6 +208,7 @@ export class TrackItem implements Mountable {
                     <div class="settings-item-label" title="Transposes the audio playback of the track">Transpose Audio</div>
                     <div class="settings-item-control">
                         <input class="track-transpose-audio" type="range" min="-24" max="12" step="1" value="0" />
+                        <span class="track-transpose-value track-transpose-audio-value">0</span>
                     </div>
                 </div>
                 <div class="track-staves"></div>
@@ -210,8 +221,10 @@ export class TrackItem implements Mountable {
         this.volume = this.root.querySelector<HTMLInputElement>('.track-volume')!;
         this.balance = this.root.querySelector<HTMLInputElement>('.track-balance')!;
         this.transposeFull = this.root.querySelector<HTMLInputElement>('.track-transpose-full')!;
+        this.transposeFullValue = this.root.querySelector<HTMLElement>('.track-transpose-full-value')!;
         this.transposeLockBtn = this.root.querySelector<HTMLButtonElement>('.track-transpose-lock')!;
         this.transposeAudio = this.root.querySelector<HTMLInputElement>('.track-transpose-audio')!;
+        this.transposeAudioValue = this.root.querySelector<HTMLElement>('.track-transpose-audio-value')!;
         this.instrument = this.root.querySelector<HTMLSelectElement>('.track-instrument')!;
 
         const isPercussion = track.staves.some(s => s.isPercussion);
@@ -261,6 +274,7 @@ export class TrackItem implements Mountable {
             savedTransposeFull = pitches[track.index] ?? 0;
         }
         this.transposeFull.value = String(savedTransposeFull);
+        this.updateTransposeLabels();
 
         let savedTransposeLocked = true;
         if (this.api.score) {
@@ -414,32 +428,22 @@ export class TrackItem implements Mountable {
         this.transposeAudio.addEventListener('input', e => {
             e.stopPropagation();
             const val = this.transposeAudio.valueAsNumber;
-            this.api.changeTrackTranspositionPitch([this.track], val);
             if (this.transposeLockBtn.classList.contains('active')) {
                 this.transposeFull.value = String(val);
-                const pitches = this.api.settings.notation.transpositionPitches;
-                while (pitches.length < this.track.index + 1) {
-                    pitches.push(0);
-                }
-                pitches[this.track.index] = val;
-                this.api.updateSettings();
-                this.api.render();
+                this.applyFullTranspose(val, true);
+            } else {
+                this.api.changeTrackTranspositionPitch([this.track], val);
+                this.updateTransposeLabels();
             }
             saveTrackSettings(this.api);
         });
         this.transposeFull.addEventListener('input', e => {
             e.stopPropagation();
             const val = this.transposeFull.valueAsNumber;
-            const pitches = this.api.settings.notation.transpositionPitches;
-            while (pitches.length < this.track.index + 1) {
-                pitches.push(0);
-            }
-            pitches[this.track.index] = val;
-            this.api.updateSettings();
-            this.api.render();
+            this.applyFullTranspose(val, true);
             if (this.transposeLockBtn.classList.contains('active')) {
                 this.transposeAudio.value = String(val);
-                this.api.changeTrackTranspositionPitch([this.track], val);
+                this.updateTransposeLabels();
             }
             saveTrackSettings(this.api);
         });
@@ -564,6 +568,29 @@ export class TrackItem implements Mountable {
         });
 
         this.api.loadMidiForScore();
+    }
+
+    private applyFullTranspose(semitones: number, reloadMidi: boolean): void {
+        const pitches = this.api.settings.notation.transpositionPitches;
+        while (pitches.length < this.track.index + 1) {
+            pitches.push(0);
+        }
+        pitches[this.track.index] = semitones;
+        this.api.updateSettings();
+        this.api.render();
+        if (reloadMidi) {
+            this.loadMidiForScoreDynamic();
+        }
+        this.updateTransposeLabels();
+    }
+
+    private updateTransposeLabels(): void {
+        this.transposeFullValue.textContent = this.formatSemitones(this.transposeFull.valueAsNumber);
+        this.transposeAudioValue.textContent = this.formatSemitones(this.transposeAudio.valueAsNumber);
+    }
+
+    private formatSemitones(semitones: number): string {
+        return `${semitones > 0 ? '+' : ''}${semitones}`;
     }
 
     private renderTransposeLockIcon(locked: boolean): void {
