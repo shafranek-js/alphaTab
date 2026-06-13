@@ -362,7 +362,11 @@ export class MidiFileSequencer {
         let millisecondsPerBuffer: number =
             (SynthConstants.MicroBufferSize / this._synthesizer.outSampleRate) * 1000 * this.playbackSpeed;
         let endTime: number = this._internalEndTime;
-        if (this._currentState.currentTime + maxMilliseconds < this._internalEndTime) {
+        if (maxMilliseconds > 0) {
+            // ensure that first microbuffer does not already exceed max time
+            if (maxMilliseconds < millisecondsPerBuffer) {
+                millisecondsPerBuffer = maxMilliseconds;
+            }
             endTime = Math.min(this._internalEndTime, this._currentState.currentTime + maxMilliseconds);
         }
 
