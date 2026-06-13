@@ -85,7 +85,7 @@ class BackingTrackAudioSynthesizer implements IAudioSampleSynthesizer {
         // not supported, ignore
     }
 
-    public synthesizeSilent(_sampleCount: number): void {
+    public synthesizeSilent(_sampleCount: number, _killVoices?: boolean): void {
         this.fakeSynthesize();
     }
 

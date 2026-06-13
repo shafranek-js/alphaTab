@@ -7,7 +7,7 @@ import {
 import { ByteBuffer } from '@coderline/alphatab/io/ByteBuffer';
 import { Logger } from '@coderline/alphatab/Logger';
 import type { LogLevel } from '@coderline/alphatab/LogLevel';
-import type { MidiEvent, MidiEventType } from '@coderline/alphatab/midi/MidiEvent';
+import { NoteOnEvent, NoteOffEvent, type MidiEvent, type MidiEventType } from '@coderline/alphatab/midi/MidiEvent';
 import type { MidiFile } from '@coderline/alphatab/midi/MidiFile';
 import { MidiUtils } from '@coderline/alphatab/midi/MidiUtils';
 import { ModelUtils } from '@coderline/alphatab/model/ModelUtils';
@@ -31,7 +31,7 @@ import { PositionChangedEventArgs } from '@coderline/alphatab/synth/PositionChan
 import { Hydra } from '@coderline/alphatab/synth/soundfont/Hydra';
 import { SynthConstants } from '@coderline/alphatab/synth/SynthConstants';
 import type { Preset } from '@coderline/alphatab/synth/synthesis/Preset';
-import type { SynthEvent } from '@coderline/alphatab/synth/synthesis/SynthEvent';
+import { SynthEvent } from '@coderline/alphatab/synth/synthesis/SynthEvent';
 import { TinySoundFont } from '@coderline/alphatab/synth/synthesis/TinySoundFont';
 
 /**
@@ -62,6 +62,8 @@ export class AlphaSynthBase implements IAlphaSynth {
     protected midiEventsPlayedFilterSet: Set<MidiEventType> = new Set<MidiEventType>();
     private _notPlayedSamples: number = 0;
     private _synthStopping = false;
+    private _isLiveMidiActive: boolean = false;
+    private _isLiveMidiStopping: boolean = false;
     private _output: ISynthOutput;
     private _loadedMidiInfo?: PositionChangedEventArgs;
     private _currentPosition: PositionChangedEventArgs = new PositionChangedEventArgs(0, 0, 0, 0, false, 120, 120);
@@ -165,13 +167,14 @@ export class AlphaSynthBase implements IAlphaSynth {
         Logger.debug('AlphaSynth', `Seeking to position ${value}ms (main)`);
 
         // tell the sequencer to jump to the given position
-        this.sequencer.mainSeek(value);
+        const killVoices = this.state === PlayerState.Playing;
+        this.sequencer.mainSeek(value, killVoices);
 
         // update the internal position
         this.updateTimePosition(value, true);
 
         // tell the output to reset the already synthesized buffers and request data again
-        if (this.sequencer.isPlayingMain) {
+        if (this.sequencer.isPlayingMain && killVoices) {
             this._notPlayedSamples = 0;
             this.output.resetSamples();
         }
@@ -306,6 +309,27 @@ export class AlphaSynthBase implements IAlphaSynth {
             if (this.sequencer.isFinished) {
                 this.synthesizer.noteOffAll(true);
             }
+        } else if (this._isLiveMidiActive) {
+            if (this._isLiveMidiStopping) {
+                return;
+            }
+            let samples: Float32Array = new Float32Array(
+                SynthConstants.MicroBufferSize * SynthConstants.MicroBufferCount * SynthConstants.AudioChannels
+            );
+            let bufferPos: number = 0;
+            for (let i = 0; i < SynthConstants.MicroBufferCount; i++) {
+                this.synthesizer.synthesize(
+                    samples,
+                    bufferPos,
+                    SynthConstants.MicroBufferSize
+                );
+                bufferPos += SynthConstants.MicroBufferSize * SynthConstants.AudioChannels;
+            }
+            this._notPlayedSamples += samples.length;
+            this.output.addSamples(samples);
+            if (this.synthesizer.activeVoiceCount === 0) {
+                this._isLiveMidiStopping = true;
+            }
         } else {
             // Tell output that there is no data left for it.
             const samples: Float32Array = new Float32Array(0);
@@ -357,6 +381,8 @@ export class AlphaSynthBase implements IAlphaSynth {
             new PlayerStateChangedEventArgs(this.state, false)
         );
         this.output.pause();
+        this._isLiveMidiActive = false;
+        this._isLiveMidiStopping = false;
         this.synthesizer.noteOffAll(false);
     }
 
@@ -375,6 +401,8 @@ export class AlphaSynthBase implements IAlphaSynth {
         Logger.debug('AlphaSynth', 'Stopping playback');
         this.state = PlayerState.Paused;
         this.output.pause();
+        this._isLiveMidiActive = false;
+        this._isLiveMidiStopping = false;
         this._notPlayedSamples = 0;
         this.sequencer.stop();
         this.synthesizer.noteOffAll(true);
@@ -382,6 +410,25 @@ export class AlphaSynthBase implements IAlphaSynth {
         (this.stateChanged as EventEmitterOfT<PlayerStateChangedEventArgs>).trigger(
             new PlayerStateChangedEventArgs(this.state, true)
         );
+    }
+
+    public playLiveNote(channel: number, noteKey: number, velocity: number): void {
+        const noteOn = new NoteOnEvent(0, 0, channel, noteKey, velocity);
+        this.synthesizer.dispatchEvent(new SynthEvent(-1, noteOn));
+        if (!this._isLiveMidiActive) {
+            this._isLiveMidiActive = true;
+            this._isLiveMidiStopping = false;
+            this._notPlayedSamples = 0;
+            this.output.activate();
+            this.output.play();
+        } else {
+            this._isLiveMidiStopping = false;
+        }
+    }
+
+    public stopLiveNote(channel: number, noteKey: number): void {
+        const noteOff = new NoteOffEvent(0, 0, channel, noteKey, 0);
+        this.synthesizer.dispatchEvent(new SynthEvent(-1, noteOff));
     }
 
     public playOneTimeMidiFile(midi: MidiFile): void {
@@ -515,10 +562,22 @@ export class AlphaSynthBase implements IAlphaSynth {
         if (sampleCount === 0) {
             return;
         }
-        const playedMillis: number = (sampleCount / this.synthesizer.outSampleRate) * 1000;
-        this._notPlayedSamples -= sampleCount * SynthConstants.AudioChannels;
-        this.updateTimePosition(this._timePosition + playedMillis, false);
-        this.checkForFinish();
+        if (this.state === PlayerState.Playing) {
+            const playedMillis: number = (sampleCount / this.synthesizer.outSampleRate) * 1000;
+            this._notPlayedSamples -= sampleCount * SynthConstants.AudioChannels;
+            this.updateTimePosition(this._timePosition + playedMillis, false);
+            this.checkForFinish();
+        } else if (this._isLiveMidiActive) {
+            this._notPlayedSamples -= sampleCount * SynthConstants.AudioChannels;
+            if (this._notPlayedSamples < 0) {
+                this._notPlayedSamples = 0;
+            }
+            if (this._isLiveMidiStopping && this._notPlayedSamples <= 0) {
+                this._isLiveMidiActive = false;
+                this._isLiveMidiStopping = false;
+                this.output.pause();
+            }
+        }
     }
 
     protected checkForFinish() {
@@ -579,6 +638,8 @@ export class AlphaSynthBase implements IAlphaSynth {
 
     private _stopOneTimeMidi() {
         this.output.pause();
+        this._isLiveMidiActive = false;
+        this._isLiveMidiStopping = false;
         this.output.resetSamples();
         this.synthesizer.noteOffAll(true);
         this.sequencer.resetOneTimeMidi();

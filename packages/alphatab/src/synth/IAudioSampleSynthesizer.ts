@@ -76,8 +76,9 @@ export interface IAudioSampleSynthesizer {
     /**
      * Synthesizes the given number of samples without producing an output (e.g. on seeking)
      * @param sampleCount The number of samples to synthesize.
+     * @param killVoices Whether to terminate active voices during silent synthesis.
      */
-    synthesizeSilent(sampleCount: number): void;
+    synthesizeSilent(sampleCount: number, killVoices?: boolean): void;
 
     /**
      * Processes the given synth event.

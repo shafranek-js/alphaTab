@@ -198,6 +198,7 @@ export class PracticePanel implements Mountable {
 
         this.subscriptions.push(this.midiService.onStateChange(state => this.updateMidiState(state)));
         this.subscriptions.push(this.midiService.onMidiNote(note => this.handleMidiNote(note)));
+        this.subscriptions.push(this.midiService.onMidiNoteOff(note => this.handleMidiNoteOff(note)));
         this.subscriptions.push(this.api.scoreLoaded.on(() => this.rebuildQueue()));
         this.subscriptions.push(this.api.renderFinished.on(() => this.rebuildQueue()));
         this.subscriptions.push(this.api.postRenderFinished.on(() => this.refresh()));
@@ -285,8 +286,23 @@ export class PracticePanel implements Mountable {
     }
 
     private handleMidiNote(note: MidiNoteInput): void {
+        let channel = 0;
+        const currentItem = this.session.getState().currentItem;
+        if (currentItem && currentItem.beat) {
+            channel = (currentItem.beat as any).voice?.bar?.staff?.track?.playbackInfo?.primaryChannel ?? 0;
+        }
+        if (channel === 0 && this.api.tracks && this.api.tracks.length > 0) {
+            channel = this.api.tracks[0].playbackInfo.primaryChannel;
+        }
+
+        this.keyboardPanel?.playInputNote(note.note, note.velocity, channel);
+
         const result = this.session.handleMidiNote(note.note);
         this.applyInputResult(result);
+    }
+
+    private handleMidiNoteOff(note: MidiNoteInput): void {
+        this.keyboardPanel?.stopInputNote(note.note);
     }
 
     private applyInputResult(result: PracticeInputResult<alphaTab.model.Beat>): void {

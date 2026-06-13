@@ -89,14 +89,15 @@ export class AlphaSynthScriptProcessorOutput extends AlphaSynthWebAudioOutputBas
             0,
             Math.min(buffer.length, this._circularBuffer.count)
         );
+        const framesFromBuffer = (samplesFromBuffer / SynthConstants.AudioChannels) | 0;
+        const min = Math.min(left.length, framesFromBuffer);
         let s: number = 0;
-        const min = Math.min(left.length, samplesFromBuffer);
         for (let i: number = 0; i < min; i++) {
             left[i] = buffer[s++];
             right[i] = buffer[s++];
         }
-        if (samplesFromBuffer < left.length) {
-            for (let i = samplesFromBuffer; i < left.length; i++) {
+        if (min < left.length) {
+            for (let i = min; i < left.length; i++) {
                 left[i] = 0;
                 right[i] = 0;
             }

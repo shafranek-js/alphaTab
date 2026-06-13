@@ -192,6 +192,21 @@ export interface IAlphaSynth {
     playOneTimeMidiFile(midi: MidiFile): void;
 
     /**
+     * Plays a live note.
+     * @param channel The midi channel to play the note on.
+     * @param noteKey The midi note key.
+     * @param velocity The velocity of the note.
+     */
+    playLiveNote(channel: number, noteKey: number, velocity: number): void;
+
+    /**
+     * Stops a live note.
+     * @param channel The midi channel.
+     * @param noteKey The midi note key.
+     */
+    stopLiveNote(channel: number, noteKey: number): void;
+
+    /**
      * Loads a soundfont from the given data
      * @param data a byte array to load the data from
      * @param append Whether to fully replace or append the data from the given soundfont.

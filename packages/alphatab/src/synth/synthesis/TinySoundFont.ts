@@ -73,8 +73,8 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         return this._fillWorkingBuffer(buffer, bufferPos, sampleCount);
     }
 
-    public synthesizeSilent(sampleCount: number): void {
-        this._fillWorkingBuffer(null, 0, sampleCount);
+    public synthesizeSilent(sampleCount: number, killVoices: boolean = true): void {
+        this._fillWorkingBuffer(null, 0, sampleCount, killVoices);
     }
 
     public channelGetMixVolume(channel: number): number {
@@ -177,7 +177,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         this._midiEventQueue.enqueue(synthEvent);
     }
 
-    private _fillWorkingBuffer(buffer: Float32Array | null, bufferPos: number, sampleCount: number): SynthEvent[] {
+    private _fillWorkingBuffer(buffer: Float32Array | null, bufferPos: number, sampleCount: number, killVoices: boolean = true): SynthEvent[] {
         // Break the process loop into sections representing the smallest timeframe before the midi controls need to be updated
         // the bigger the timeframe the more efficent the process is, but playback quality will be reduced.
         const anySolo: boolean = this._isAnySolo;
@@ -208,7 +208,9 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                     (anySolo && channel !== this._metronomeChannel && !this._soloChannels.has(channel));
 
                 if (!buffer) {
-                    voice.kill();
+                    if (killVoices) {
+                        voice.kill();
+                    }
                 } else {
                     voice.render(this, buffer, bufferPos, sampleCount, isChannelMuted);
                 }

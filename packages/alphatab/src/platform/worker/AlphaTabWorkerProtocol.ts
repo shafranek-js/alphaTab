@@ -77,6 +77,8 @@ export type IAlphaSynthWorkerMessage =
     | { cmd: 'alphaSynth.playPause' }
     | { cmd: 'alphaSynth.stop' }
     | { cmd: 'alphaSynth.playOneTimeMidiFile'; midi: unknown }
+    | { cmd: 'alphaSynth.playLiveNote'; channel: number; noteKey: number; velocity: number }
+    | { cmd: 'alphaSynth.stopLiveNote'; channel: number; noteKey: number }
     | { cmd: 'alphaSynth.loadSoundFontBytes'; data: Uint8Array; append: boolean }
     | { cmd: 'alphaSynth.resetSoundFonts' }
     | { cmd: 'alphaSynth.loadMidi'; midi: unknown }

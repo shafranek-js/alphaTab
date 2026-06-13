@@ -66,6 +66,7 @@ export class MidiInputService {
     private connecting = false;
     private error: string | null = null;
     private noteCallbacks: Array<(note: MidiNoteInput) => void> = [];
+    private noteOffCallbacks: Array<(note: MidiNoteInput) => void> = [];
     private stateCallbacks: Array<(state: MidiInputState) => void> = [];
 
     public constructor(private navigatorLike: MidiNavigatorLike | undefined = globalThis.navigator as MidiNavigatorLike | undefined) {}
@@ -99,6 +100,13 @@ export class MidiInputService {
         this.noteCallbacks.push(callback);
         return () => {
             this.noteCallbacks = this.noteCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
+    public onMidiNoteOff(callback: (note: MidiNoteInput) => void): () => void {
+        this.noteOffCallbacks.push(callback);
+        return () => {
+            this.noteOffCallbacks = this.noteOffCallbacks.filter(cb => cb !== callback);
         };
     }
 
@@ -178,20 +186,36 @@ export class MidiInputService {
     }
 
     private handleMidiMessage(event: MidiMessageEventLike, input: MidiInputLike): void {
-        const parsed = parseMidiNoteMessage(event.data);
-        if (!parsed) {
+        if (event.data.length < 3) {
+            return;
+        }
+        const status = event.data[0] & 0xf0;
+        const noteNumber = event.data[1];
+        const velocity = event.data[2];
+
+        const isNoteOn = status === 0x90 && velocity > 0;
+        const isNoteOff = status === 0x80 || (status === 0x90 && velocity === 0);
+
+        if (!isNoteOn && !isNoteOff) {
             return;
         }
 
         const note: MidiNoteInput = {
-            note: parsed.note,
-            pitchClass: parsed.note % 12,
-            velocity: parsed.velocity,
+            note: noteNumber,
+            pitchClass: noteNumber % 12,
+            velocity: velocity,
             inputId: input.id,
             inputName: input.name ?? 'MIDI Device'
         };
-        for (const callback of this.noteCallbacks) {
-            callback(note);
+
+        if (isNoteOn) {
+            for (const callback of this.noteCallbacks) {
+                callback(note);
+            }
+        } else {
+            for (const callback of this.noteOffCallbacks) {
+                callback(note);
+            }
         }
     }
 

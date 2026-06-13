@@ -146,7 +146,7 @@ export class MidiFileSequencer {
      */
     public playbackSpeed: number = 1;
 
-    public mainSeek(timePosition: number): void {
+    public mainSeek(timePosition: number, killVoices: boolean = true): void {
         // map to speed=1
         timePosition *= this.playbackSpeed;
 
@@ -160,7 +160,7 @@ export class MidiFileSequencer {
         }
 
         if (timePosition > this._mainState.currentTime) {
-            this._mainSilentProcess(timePosition - this._mainState.currentTime);
+            this._mainSilentProcess(timePosition - this._mainState.currentTime, killVoices);
         } else if (timePosition < this._mainState.currentTime) {
             // we have to restart the midi to make sure we get the right state: instruments, volume, pan, etc
             this._mainState.currentTime = 0;
@@ -172,17 +172,17 @@ export class MidiFileSequencer {
                 this._mainState.syncPoints.length > 0
                     ? this._mainState.syncPoints[0].syncBpm
                     : this._mainState.currentTempo;
-            if (this.isPlayingMain) {
+            if (this.isPlayingMain && killVoices) {
                 const metronomeVolume: number = this._synthesizer.metronomeVolume;
                 this._synthesizer.noteOffAll(true);
                 this._synthesizer.resetSoft();
                 this._synthesizer.setupMetronomeChannel(this.metronomeChannel, metronomeVolume);
             }
-            this._mainSilentProcess(timePosition);
+            this._mainSilentProcess(timePosition, killVoices);
         }
     }
 
-    private _mainSilentProcess(milliseconds: number): void {
+    private _mainSilentProcess(milliseconds: number, killVoices: boolean = true): void {
         if (milliseconds <= 0) {
             return;
         }
@@ -192,8 +192,8 @@ export class MidiFileSequencer {
 
         if (this.isPlayingMain) {
             while (this._mainState.currentTime < finalTime) {
-                if (this._fillMidiEventQueueLimited(finalTime - this._mainState.currentTime)) {
-                    this._synthesizer.synthesizeSilent(SynthConstants.MicroBufferSize);
+                if (this._fillMidiEventQueueLimited(finalTime - this._mainState.currentTime, killVoices)) {
+                    this._synthesizer.synthesizeSilent(SynthConstants.MicroBufferSize, killVoices);
                 }
             }
         }
@@ -358,7 +358,7 @@ export class MidiFileSequencer {
         return anyEventsDispatched;
     }
 
-    private _fillMidiEventQueueLimited(maxMilliseconds: number): boolean {
+    private _fillMidiEventQueueLimited(maxMilliseconds: number, killVoices: boolean = true): boolean {
         let millisecondsPerBuffer: number =
             (SynthConstants.MicroBufferSize / this._synthesizer.outSampleRate) * 1000 * this.playbackSpeed;
         let endTime: number = this._internalEndTime;
@@ -377,7 +377,12 @@ export class MidiFileSequencer {
             this._currentState.synthData[this._currentState.eventIndex].time < this._currentState.currentTime &&
             this._currentState.currentTime < endTime
         ) {
-            this._synthesizer.dispatchEvent(this._currentState.synthData[this._currentState.eventIndex]);
+            const e = this._currentState.synthData[this._currentState.eventIndex];
+            const eventType = e.event ? e.event.type : -1;
+            const isNoteEvent = eventType === MidiEventType.NoteOn || eventType === MidiEventType.NoteOff;
+            if (killVoices || !isNoteEvent) {
+                this._synthesizer.dispatchEvent(e);
+            }
             this._currentState.eventIndex++;
             anyEventsDispatched = true;
         }

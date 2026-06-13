@@ -299,6 +299,23 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
         });
     }
 
+    public playLiveNote(channel: number, noteKey: number, velocity: number): void {
+        this._synth.postMessage({
+            cmd: 'alphaSynth.playLiveNote',
+            channel: channel,
+            noteKey: noteKey,
+            velocity: velocity
+        });
+    }
+
+    public stopLiveNote(channel: number, noteKey: number): void {
+        this._synth.postMessage({
+            cmd: 'alphaSynth.stopLiveNote',
+            channel: channel,
+            noteKey: noteKey
+        });
+    }
+
     public loadSoundFont(data: Uint8Array, append: boolean): void {
         this._synth.postMessage({
             cmd: 'alphaSynth.loadSoundFontBytes',

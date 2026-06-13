@@ -102,6 +102,12 @@ export class AlphaSynthWebWorker {
             case 'alphaSynth.playOneTimeMidiFile':
                 this._player.playOneTimeMidiFile(JsonConverter.jsObjectToMidiFile(data.midi));
                 break;
+            case 'alphaSynth.playLiveNote':
+                this._player.playLiveNote(data.channel, data.noteKey, data.velocity);
+                break;
+            case 'alphaSynth.stopLiveNote':
+                this._player.stopLiveNote(data.channel, data.noteKey);
+                break;
             case 'alphaSynth.loadSoundFontBytes':
                 this._player.loadSoundFont(data.data, data.append);
                 break;

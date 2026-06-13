@@ -323,6 +323,18 @@ export class AlphaSynthWrapper implements IAlphaSynth {
         }
     }
 
+    public playLiveNote(channel: number, noteKey: number, velocity: number): void {
+        if (this._instance) {
+            this._instance!.playLiveNote(channel, noteKey, velocity);
+        }
+    }
+
+    public stopLiveNote(channel: number, noteKey: number): void {
+        if (this._instance) {
+            this._instance!.stopLiveNote(channel, noteKey);
+        }
+    }
+
     public loadSoundFont(data: Uint8Array, append: boolean): void {
         if (this._instance) {
             this._instance!.loadSoundFont(data, append);
