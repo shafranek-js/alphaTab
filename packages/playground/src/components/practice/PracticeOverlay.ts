@@ -2,7 +2,7 @@ import type * as alphaTab from '@coderline/alphatab';
 import { type Mountable, css, injectStyles, parseHtml } from '../../util/Dom';
 import type { PracticeQueueItem } from './PracticeController';
 
-type OverlayFeedback = 'current' | 'partial' | 'correct' | 'wrong';
+type OverlayFeedback = 'current' | 'partial' | 'correct' | 'wrong' | 'missed';
 
 injectStyles(
     'PracticeOverlay',
@@ -35,6 +35,11 @@ injectStyles(
         background: rgba(201, 42, 42, 0.28);
         transform: scale(1.08);
     }
+    .at-practice-note-mark.missed {
+        border-color: #c2410c;
+        background: rgba(251, 146, 60, 0.3);
+        transform: scale(1.08);
+    }
 `
 );
 
@@ -65,6 +70,16 @@ export class PracticeOverlay implements Mountable {
         }, 180);
     }
 
+    public flashItems(items: PracticeQueueItem<alphaTab.model.Beat>[], feedback: OverlayFeedback): void {
+        this.renderMany(items, feedback);
+        if (this.clearFeedbackTimer !== null) {
+            window.clearTimeout(this.clearFeedbackTimer);
+        }
+        this.clearFeedbackTimer = window.setTimeout(() => {
+            this.clear();
+        }, 300);
+    }
+
     public clear(): void {
         if (this.clearFeedbackTimer !== null) {
             window.clearTimeout(this.clearFeedbackTimer);
@@ -87,7 +102,21 @@ export class PracticeOverlay implements Mountable {
         if (!item) {
             return;
         }
+        this.renderItem(item, feedback, matchedNotes);
+    }
 
+    private renderMany(items: PracticeQueueItem<alphaTab.model.Beat>[], feedback: OverlayFeedback): void {
+        this.root.replaceChildren();
+        for (const item of items) {
+            this.renderItem(item, feedback);
+        }
+    }
+
+    private renderItem(
+        item: PracticeQueueItem<alphaTab.model.Beat>,
+        feedback: OverlayFeedback,
+        matchedNotes: number[] = []
+    ): void {
         const beatBounds = this.api.boundsLookup?.findBeat(item.beat);
         if (!beatBounds) {
             return;

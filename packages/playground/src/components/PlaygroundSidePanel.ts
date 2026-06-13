@@ -214,16 +214,16 @@ export class PlaygroundSidePanel implements Mountable {
     private originalRender?: any;
     private originalRenderScore?: any;
     private originalRenderTracks?: any;
-    private barCursorColor: string = '#ffff00';
-    private barCursorOpacity: number = 0.25;
+    private barCursorColor: string = '#ffd57a';
+    private barCursorOpacity: number = 0.1;
     private barCursorPosition: 'above' | 'below' = 'below';
     private cursorStyleEl?: HTMLStyleElement;
     private beatCursorColor: string = '#4040ff';
     private beatCursorOpacity: number = 0.75;
     private beatCursorWidth: number = 3;
     private beatCursorColorFromNote: boolean = false;
-    private lightThemeBgColor: string = '#ffffff';
-    private darkThemeBgColor: string = '#0f172a';
+    private lightThemeBgColor: string = '#ebebeb';
+    private darkThemeBgColor: string = '#0c0f18';
     private hiddenTracksVolume: number = 1;
 
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
@@ -232,8 +232,8 @@ export class PlaygroundSidePanel implements Mountable {
         this.loadSavedSettings();
 
         if (!localStorage.getItem('at-playground-settings')) {
-            this.barCursorColor = localStorage.getItem('at-playground-bar-cursor-color') ?? '#ffff00';
-            this.barCursorOpacity = Number(localStorage.getItem('at-playground-bar-cursor-opacity') ?? '0.25');
+            this.barCursorColor = localStorage.getItem('at-playground-bar-cursor-color') ?? '#ffd57a';
+            this.barCursorOpacity = Number(localStorage.getItem('at-playground-bar-cursor-opacity') ?? '0.1');
             this.barCursorPosition =
                 (localStorage.getItem('at-playground-bar-cursor-position') as 'above' | 'below') ?? 'below';
         }

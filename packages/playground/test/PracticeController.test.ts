@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+    buildLoopTrainerQueue,
     buildPracticeQueue,
     findBestPianoTransposeIntervals,
+    LoopTrainerSession,
     type PracticeBeatSource,
     PracticeSession
 } from '../src/components/practice/PracticeController';
@@ -136,6 +138,99 @@ describe('PracticeController', () => {
         expect(queue).toHaveLength(1); // b2 should be skipped because all notes are tie destinations
         expect(queue[0].expectedNotes).toEqual([60]); // b1 should only expect 60, since 64 is a tie destination
     });
+
+    describe('LoopTrainerSession', () => {
+        it('builds a queue only from playable notes inside the playback range', () => {
+            const b1 = beatAt([60], 100);
+            const b2 = beatAt([62], 200);
+            const b3 = beatAt([64], 300);
+
+            const queue = buildLoopTrainerQueue([b1, b2, b3], null, { startTick: 150, endTick: 250 });
+
+            expect(queue.map(item => item.pitch)).toEqual([62]);
+        });
+
+        it('builds a full queue when no range is selected', () => {
+            const queue = buildLoopTrainerQueue([beatAt([60], 100), beatAt([62], 200)], null, null);
+
+            expect(queue.map(item => item.pitch)).toEqual([60, 62]);
+        });
+
+        it('matches a correct MIDI note once and ignores duplicates', () => {
+            const session = new LoopTrainerSession();
+            session.start(buildLoopTrainerQueue([beatAt([60], 100)], null, null));
+
+            expect(session.handleMidiNote(60, 100).type).toBe('matched');
+            expect(session.handleMidiNote(60, 100).type).toBe('duplicate');
+
+            session.updateTick(100);
+            const pass = session.updateTick(0);
+            expect(pass?.stats.matchedCount).toBe(1);
+            expect(pass?.stats.wrongCount).toBe(0);
+        });
+
+        it('counts wrong pitch and missed notes at pass boundary', () => {
+            const session = new LoopTrainerSession();
+            session.start(buildLoopTrainerQueue([beatAt([60], 100)], null, null));
+
+            expect(session.handleMidiNote(61, 100).type).toBe('wrong');
+            session.updateTick(100);
+            const pass = session.updateTick(0);
+
+            expect(pass?.stats.wrongCount).toBe(1);
+            expect(pass?.stats.missedCount).toBe(1);
+            expect(pass?.stats.clean).toBe(false);
+        });
+
+        it('matches chord notes in any order', () => {
+            const session = new LoopTrainerSession();
+            session.start(buildLoopTrainerQueue([beatAt([60, 64], 100)], null, null));
+
+            expect(session.handleMidiNote(64, 100).type).toBe('matched');
+            expect(session.handleMidiNote(60, 100).type).toBe('matched');
+            session.updateTick(100);
+            const pass = session.updateTick(0);
+
+            expect(pass?.stats.matchedCount).toBe(2);
+            expect(pass?.stats.clean).toBe(true);
+        });
+
+        it('resets clean streak after a pass with mistakes', () => {
+            const session = new LoopTrainerSession();
+            session.start(buildLoopTrainerQueue([beatAt([60], 100)], null, null));
+
+            completeCleanPass(session);
+            expect(session.getState().cleanPassStreak).toBe(1);
+
+            session.handleMidiNote(61, 100);
+            session.updateTick(100);
+            session.updateTick(0);
+
+            expect(session.getState().cleanPassStreak).toBe(0);
+        });
+
+        it('increases speed after three clean passes, rounded and capped at target speed', () => {
+            const session = new LoopTrainerSession({
+                startSpeed: 0.7,
+                targetSpeed: 1,
+                speedIncrement: 0.1,
+                cleanPassesRequired: 3
+            });
+            session.start(buildLoopTrainerQueue([beatAt([60], 100)], null, null));
+
+            completeCleanPass(session);
+            completeCleanPass(session);
+            const pass = completeCleanPass(session);
+
+            expect(pass?.speedChanged).toBe(true);
+            expect(session.getState().speed).toBe(0.8);
+
+            for (let i = 0; i < 9; i++) {
+                completeCleanPass(session);
+            }
+            expect(session.getState().speed).toBe(1);
+        });
+    });
 });
 
 function beat(notes: number[], isRest = false): PracticeBeatSource {
@@ -143,4 +238,16 @@ function beat(notes: number[], isRest = false): PracticeBeatSource {
         isRest,
         notes: notes.map(realValue => ({ realValue }))
     };
+}
+
+function beatAt(notes: number[], startTick: number): PracticeBeatSource {
+    const b = beat(notes);
+    (b as any).absolutePlaybackStart = startTick;
+    return b;
+}
+
+function completeCleanPass(session: LoopTrainerSession): ReturnType<LoopTrainerSession['updateTick']> {
+    session.updateTick(100);
+    session.handleMidiNote(60, 100);
+    return session.updateTick(0);
 }

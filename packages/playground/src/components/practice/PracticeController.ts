@@ -21,6 +21,65 @@ export interface PracticeQueueItem<TBeat extends PracticeBeatSource = PracticeBe
     startTick: number;
 }
 
+export interface LoopTrainerRange {
+    startTick: number;
+    endTick: number;
+}
+
+export interface LoopTrainerSettings {
+    startSpeed: number;
+    targetSpeed: number;
+    speedIncrement: number;
+    cleanPassesRequired: number;
+}
+
+export interface LoopTrainerPassStats {
+    passIndex: number;
+    wrongCount: number;
+    missedCount: number;
+    matchedCount: number;
+    expectedCount: number;
+    clean: boolean;
+}
+
+export interface LoopTrainerState {
+    running: boolean;
+    currentPass: number;
+    cleanPassStreak: number;
+    speed: number;
+    targetSpeed: number;
+    lastPass: LoopTrainerPassStats | null;
+}
+
+export interface LoopTrainerExpectedItem<TBeat extends PracticeBeatSource = PracticeBeatSource> {
+    id: number;
+    beat: TBeat;
+    pitch: number;
+    startTick: number;
+    matched: boolean;
+}
+
+export type LoopTrainerInputResult<TBeat extends PracticeBeatSource = PracticeBeatSource> =
+    | { type: 'ignored'; state: LoopTrainerState }
+    | { type: 'duplicate'; item: LoopTrainerExpectedItem<TBeat>; state: LoopTrainerState }
+    | { type: 'matched'; item: LoopTrainerExpectedItem<TBeat>; state: LoopTrainerState }
+    | { type: 'wrong'; inputNote: number; expectedNotes: number[]; state: LoopTrainerState };
+
+export interface LoopTrainerPassResult<TBeat extends PracticeBeatSource = PracticeBeatSource> {
+    stats: LoopTrainerPassStats;
+    missedItems: LoopTrainerExpectedItem<TBeat>[];
+    speedChanged: boolean;
+}
+
+export const defaultLoopTrainerSettings: LoopTrainerSettings = {
+    startSpeed: 0.7,
+    targetSpeed: 1,
+    speedIncrement: 0.1,
+    cleanPassesRequired: 3
+};
+
+const defaultLoopTrainerMatchWindowTicks = 240;
+
 export interface PracticeSessionState<TBeat extends PracticeBeatSource = PracticeBeatSource> {
     running: boolean;
     complete: boolean;
@@ -75,6 +134,32 @@ export function buildPracticeQueue<TBeat extends PracticeBeatSource>(
     }
 
     return items.sort((a, b) => a.startTick - b.startTick);
+}
+
+export function buildLoopTrainerQueue<TBeat extends PracticeBeatSource>(
+    beats: Iterable<TBeat>,
+    tickLookup?: PracticeTickLookup<TBeat> | null,
+    range?: LoopTrainerRange | null
+): LoopTrainerExpectedItem<TBeat>[] {
+    const expected: LoopTrainerExpectedItem<TBeat>[] = [];
+    const practiceQueue = buildPracticeQueue(beats, tickLookup);
+
+    for (const item of practiceQueue) {
+        if (range && (item.startTick < range.startTick || item.startTick >= range.endTick)) {
+            continue;
+        }
+        for (const pitch of item.expectedNotes) {
+            expected.push({
+                id: expected.length,
+                beat: item.beat,
+                pitch,
+                startTick: item.startTick,
+                matched: false
+            });
+        }
+    }
+
+    return expected;
 }
 
 export function getPlayableBeatsFromTracks(tracks: readonly alphaTab.model.Track[]): alphaTab.model.Beat[] {
@@ -232,8 +317,211 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
     }
 }
 
+export class LoopTrainerSession<TBeat extends PracticeBeatSource = PracticeBeatSource> {
+    private queue: LoopTrainerExpectedItem<TBeat>[] = [];
+    private running = false;
+    private currentPass = 0;
+    private cleanPassStreak = 0;
+    private speed: number;
+    private targetSpeed: number;
+    private lastPass: LoopTrainerPassStats | null = null;
+    private wrongCount = 0;
+    private lastTick: number | null = null;
+    private settings: LoopTrainerSettings;
+
+    public constructor(
+        settings: Partial<LoopTrainerSettings> = {},
+        private matchWindowTicks: number = defaultLoopTrainerMatchWindowTicks
+    ) {
+        this.settings = normalizeLoopTrainerSettings(settings);
+        this.speed = this.settings.startSpeed;
+        this.targetSpeed = this.settings.targetSpeed;
+    }
+
+    public configure(settings: Partial<LoopTrainerSettings>): void {
+        this.settings = normalizeLoopTrainerSettings(settings);
+        this.speed = this.settings.startSpeed;
+        this.targetSpeed = this.settings.targetSpeed;
+    }
+
+    public start(queue: LoopTrainerExpectedItem<TBeat>[]): LoopTrainerState {
+        this.queue = queue.map(item => ({ ...item, matched: false }));
+        this.running = this.queue.length > 0;
+        this.currentPass = this.running ? 1 : 0;
+        this.cleanPassStreak = 0;
+        this.speed = this.settings.startSpeed;
+        this.targetSpeed = this.settings.targetSpeed;
+        this.lastPass = null;
+        this.wrongCount = 0;
+        this.lastTick = null;
+        return this.getState();
+    }
+
+    public stop(): LoopTrainerState {
+        this.running = false;
+        this.lastTick = null;
+        return this.getState();
+    }
+
+    public resetStats(): LoopTrainerState {
+        this.currentPass = this.running ? 1 : 0;
+        this.cleanPassStreak = 0;
+        this.lastPass = null;
+        this.wrongCount = 0;
+        this.resetMatched();
+        return this.getState();
+    }
+
+    public updateTick(tick: number): LoopTrainerPassResult<TBeat> | null {
+        if (!this.running) {
+            return null;
+        }
+
+        const wrapped = this.lastTick !== null && tick < this.lastTick;
+        this.lastTick = tick;
+        return wrapped ? this.finishPass() : null;
+    }
+
+    public handleMidiNote(inputNote: number, tick: number): LoopTrainerInputResult<TBeat> {
+        if (!this.running) {
+            return { type: 'ignored', state: this.getState() };
+        }
+
+        const candidates = this.findCandidates(tick);
+        if (candidates.length === 0) {
+            return { type: 'ignored', state: this.getState() };
+        }
+
+        const unmatchedMatch = candidates.find(item => !item.matched && item.pitch === inputNote);
+        if (unmatchedMatch) {
+            unmatchedMatch.matched = true;
+            return { type: 'matched', item: unmatchedMatch, state: this.getState() };
+        }
+
+        const duplicateMatch = candidates.find(item => item.matched && item.pitch === inputNote);
+        if (duplicateMatch) {
+            return { type: 'duplicate', item: duplicateMatch, state: this.getState() };
+        }
+
+        this.wrongCount++;
+        return {
+            type: 'wrong',
+            inputNote,
+            expectedNotes: uniqueNotes(candidates.map(item => item.pitch)),
+            state: this.getState()
+        };
+    }
+
+    public getState(): LoopTrainerState {
+        return {
+            running: this.running,
+            currentPass: this.currentPass,
+            cleanPassStreak: this.cleanPassStreak,
+            speed: this.speed,
+            targetSpeed: this.targetSpeed,
+            lastPass: this.lastPass
+        };
+    }
+
+    public getExpectedItems(): readonly LoopTrainerExpectedItem<TBeat>[] {
+        return this.queue;
+    }
+
+    public getCurrentItem(tick: number): LoopTrainerExpectedItem<TBeat> | null {
+        if (this.queue.length === 0) {
+            return null;
+        }
+
+        let best: LoopTrainerExpectedItem<TBeat> | null = null;
+        let bestDiff = Number.POSITIVE_INFINITY;
+        for (const item of this.queue) {
+            const diff = Math.abs(item.startTick - tick);
+            if (diff < bestDiff) {
+                best = item;
+                bestDiff = diff;
+            }
+        }
+        return best;
+    }
+
+    private findCandidates(tick: number): LoopTrainerExpectedItem<TBeat>[] {
+        return this.queue.filter(item => Math.abs(item.startTick - tick) <= this.matchWindowTicks);
+    }
+
+    private finishPass(): LoopTrainerPassResult<TBeat> {
+        const missedItems = this.queue.filter(item => !item.matched);
+        const matchedCount = this.queue.length - missedItems.length;
+        const stats: LoopTrainerPassStats = {
+            passIndex: this.currentPass,
+            wrongCount: this.wrongCount,
+            missedCount: missedItems.length,
+            matchedCount,
+            expectedCount: this.queue.length,
+            clean: this.wrongCount === 0 && missedItems.length === 0 && matchedCount === this.queue.length
+        };
+
+        this.lastPass = stats;
+        let speedChanged = false;
+        if (stats.clean) {
+            this.cleanPassStreak++;
+            if (this.cleanPassStreak >= this.settings.cleanPassesRequired) {
+                const nextSpeed = Math.min(
+                    this.targetSpeed,
+                    roundToStep(this.speed * (1 + this.settings.speedIncrement), 0.1)
+                );
+                if (nextSpeed !== this.speed) {
+                    this.speed = nextSpeed;
+                    speedChanged = true;
+                }
+                this.cleanPassStreak = 0;
+            }
+        } else {
+            this.cleanPassStreak = 0;
+        }
+
+        this.currentPass++;
+        this.wrongCount = 0;
+        this.resetMatched();
+
+        return {
+            stats,
+            missedItems,
+            speedChanged
+        };
+    }
+
+    private resetMatched(): void {
+        for (const item of this.queue) {
+            item.matched = false;
+        }
+    }
+}
+
 function uniqueNotes(notes: number[]): number[] {
     return Array.from(new Set(notes)).sort((a, b) => a - b);
+}
+
+function normalizeLoopTrainerSettings(settings: Partial<LoopTrainerSettings>): LoopTrainerSettings {
+    return {
+        startSpeed: clampSpeed(settings.startSpeed ?? defaultLoopTrainerSettings.startSpeed),
+        targetSpeed: clampSpeed(settings.targetSpeed ?? defaultLoopTrainerSettings.targetSpeed),
+        speedIncrement: Math.max(0, settings.speedIncrement ?? defaultLoopTrainerSettings.speedIncrement),
+        cleanPassesRequired: Math.max(
+            1,
+            Math.round(settings.cleanPassesRequired ?? defaultLoopTrainerSettings.cleanPassesRequired)
+        )
+    };
+}
+
+function clampSpeed(value: number): number {
+    if (!Number.isFinite(value)) {
+        return 1;
+    }
+    return Math.min(1, Math.max(0.1, value));
+}
+
+function roundToStep(value: number, step: number): number {
+    return Math.round(value / step) * step;
 }
 
 export const findBestPianoTransposeIntervals = (midiNumbers: number[]): number[] => {

@@ -327,9 +327,15 @@ export class AlphaSynthBase implements IAlphaSynth {
             }
             this._notPlayedSamples += samples.length;
             this.output.addSamples(samples);
+            // Note: We intentionally do not auto-stop/pause live MIDI playback when the active voice count drops to 0.
+            // Constantly starting, stopping, and resuming the Web Audio context for every single note 
+            // causes browser autoplay restrictions to block the resume calls (since Web MIDI events do not 
+            // count as user gestures). Keeping it active ensures glitch-free and low-latency live playback.
+            /*
             if (this.synthesizer.activeVoiceCount === 0) {
                 this._isLiveMidiStopping = true;
             }
+            */
         } else {
             // Tell output that there is no data left for it.
             const samples: Float32Array = new Float32Array(0);

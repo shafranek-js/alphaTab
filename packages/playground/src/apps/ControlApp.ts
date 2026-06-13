@@ -93,13 +93,40 @@ export function buildSettings(options: ControlAppOptions, viewport: HTMLElement)
         },
         display: {
             scale: 2,
-            layoutMode: alphaTab.LayoutMode.Parchment
+            layoutMode: alphaTab.LayoutMode.Parchment,
+            stretchForce: 1.5,
+            padding: [35, 35],
+            firstSystemPaddingTop: 0,
+            systemPaddingTop: 10,
+            lastSystemPaddingBottom: 5,
+            systemPaddingBottom: 10,
+            systemLabelPaddingLeft: 0,
+            systemLabelPaddingRight: 3,
+            accoladeBarPaddingRight: 3,
+            notationStaffPaddingTop: 0,
+            notationStaffPaddingBottom: 0,
+            effectStaffPaddingTop: 0,
+            effectStaffPaddingBottom: 0,
+            firstStaffPaddingLeft: 6,
+            staffPaddingLeft: 2
+        },
+        notation: {
+            rhythmHeight: 25,
+            smallGraceTabNotes: true,
+            extendBendArrowsOnTiedNotes: true,
+            extendLineEffectsToBeatEnd: false,
+            slurHeight: 5
         },
         player: {
             playerMode: alphaTab.PlayerMode.EnabledAutomatic,
+            enableCursor: true,
+            enableAnimatedBeatCursor: true,
             enableElementHighlighting: true,
+            enableUserInteraction: true,
             scrollOffsetX: -10,
             scrollOffsetY: -20,
+            scrollMode: alphaTab.ScrollMode.Continuous,
+            playTripletFeel: true,
             soundFont: options.soundFont ?? Paths.soundFont,
             scrollElement: viewport
         }
