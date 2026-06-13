@@ -59,8 +59,8 @@ globalThis.window = {
     removeEventListener: vi.fn()
 } as any;
 
-describe('PianoKeyboard live note reference counting', () => {
-    it('implements reference counting for repeated notes', async () => {
+describe('PianoKeyboard live note queueing', () => {
+    it('implements queueing for repeated notes', async () => {
         // Use dynamic import to avoid hoisting issues, ensuring document is mocked first
         const { PianoKeyboard } = await import('../src/components/PianoKeyboard');
 
@@ -99,13 +99,14 @@ describe('PianoKeyboard live note reference counting', () => {
 
         // 3. Stop note 60 (first release)
         keyboard.stopInputNote(60);
-        // Should NOT trigger stopLiveNote yet since refCount is 1
-        expect(mockPlayer.stopLiveNote).not.toHaveBeenCalled();
+        // Should trigger stopLiveNote for the first channel (1)
+        expect(mockPlayer.stopLiveNote).toHaveBeenLastCalledWith(1, 60);
+        expect(mockPlayer.stopLiveNote).toHaveBeenCalledTimes(1);
 
         // 4. Stop note 60 (second release)
         keyboard.stopInputNote(60);
-        // Should trigger stopLiveNote now since refCount is 0
+        // Should trigger stopLiveNote again for the second channel (1)
         expect(mockPlayer.stopLiveNote).toHaveBeenLastCalledWith(1, 60);
-        expect(mockPlayer.stopLiveNote).toHaveBeenCalledTimes(1);
+        expect(mockPlayer.stopLiveNote).toHaveBeenCalledTimes(2);
     });
 });

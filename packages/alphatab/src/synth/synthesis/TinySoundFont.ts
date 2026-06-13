@@ -235,7 +235,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                 break;
             case MidiEventType.NoteOff:
                 const noteOff = e as NoteOffEvent;
-                this.channelNoteOff(noteOff.channel, noteOff.noteKey);
+                this.channelNoteOff(noteOff.channel, noteOff.noteKey, isLive);
                 break;
             case MidiEventType.ControlChange:
                 const controlChange = e as ControlChangeEvent;
@@ -686,7 +686,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
      * @param channel channel number
      * @param key note value between 0 and 127 (60 being middle C)
      */
-    public channelNoteOff(channel: number, key: number): void {
+    public channelNoteOff(channel: number, key: number, isLive: boolean = false): void {
         if (this._transpositionPitches.has(channel)) {
             key += this._transpositionPitches.get(channel)!;
         }
@@ -703,7 +703,8 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                 v.playingPreset === -1 ||
                 v.playingChannel !== channel ||
                 v.playingKey !== key ||
-                v.ampEnv.segment >= VoiceEnvelopeSegment.Release
+                v.ampEnv.segment >= VoiceEnvelopeSegment.Release ||
+                v.isLive !== isLive
             ) {
                 continue;
             }

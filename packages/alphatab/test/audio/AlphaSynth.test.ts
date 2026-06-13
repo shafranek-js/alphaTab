@@ -395,4 +395,112 @@ describe('AlphaSynthTests', () => {
 
         await testPlaythrough(midi);
     });
+
+    it('live-notes-not-killed-by-seek', async () => {
+        const data = await TestPlatform.loadFile('test-data/audio/default.sf2');
+        const tex = '\\tempo 102 \\tuning E4 B3 G3 D3 A2 E2 \\instrument 25 . r.8 (0.4 0.3 ).8';
+        const score = ScoreLoader.loadAlphaTex(tex);
+        const midi = new MidiFile();
+        const gen = new MidiFileGenerator(score, null, new AlphaSynthMidiFileHandler(midi));
+        gen.generate();
+
+        const testOutput = new TestOutput();
+        const synth = new AlphaSynth(testOutput, 500);
+        synth.loadSoundFont(data, false);
+        synth.loadMidiFile(midi);
+
+        // 1. Perform a seek to initialize the channels and presets
+        synth.timePosition = 1000;
+
+        // 2. Play live note 60 (channel 0)
+        synth.playLiveNote(0, 60, 100);
+        testOutput.next();
+        
+        // Let's verify active voices count > 0
+        const tsf = (synth as any).synthesizer;
+        expect(tsf.activeVoiceCount).toBeGreaterThan(0);
+
+        // 3. Perform another seek (timePosition = 2000)
+        synth.timePosition = 2000;
+
+        // We expect live notes NOT to be killed by the seek!
+        expect(tsf.activeVoiceCount).toBeGreaterThan(0);
+
+        // 4. Send song noteOff event (non-live) for note 60
+        tsf.channelNoteOff(0, 60, false);
+        testOutput.next();
+
+        // The live note (which has isLive = true) should still be playing!
+        expect(tsf.activeVoiceCount).toBeGreaterThan(0);
+
+        // 5. Send live noteOff event (isLive = true) for note 60
+        synth.stopLiveNote(0, 60);
+
+        let limit = 100;
+        while (tsf.activeVoiceCount > 0 && limit > 0) {
+            testOutput.next();
+            limit--;
+        }
+        
+        // Now the active voice count should drop to 0
+        expect(tsf.activeVoiceCount).toBe(0);
+    });
+
+    it('repeated-live-notes-step-practice', async () => {
+        const data = await TestPlatform.loadFile('test-data/audio/default.sf2');
+        const tex = '\\tempo 102 \\tuning E4 B3 G3 D3 A2 E2 \\instrument 25 . (0.4 0.3 ).8 (0.4 0.3 ).8';
+        const score = ScoreLoader.loadAlphaTex(tex);
+        const midi = new MidiFile();
+        const gen = new MidiFileGenerator(score, null, new AlphaSynthMidiFileHandler(midi));
+        gen.generate();
+
+        const testOutput = new TestOutput();
+        const synth = new AlphaSynth(testOutput, 500);
+        synth.loadSoundFont(data, false);
+        synth.loadMidiFile(midi);
+
+        const tsf = (synth as any).synthesizer;
+
+        // 0. Perform a seek to initialize the channels and presets
+        synth.timePosition = 100;
+
+        // 1. Play first live note 60
+        synth.playLiveNote(0, 60, 100);
+        testOutput.next();
+        expect(tsf.activeVoiceCount).toBeGreaterThan(0);
+
+        // 2. First note matched -> Seek to second note (1000ms)
+        synth.timePosition = 1000;
+        testOutput.next();
+        expect(tsf.activeVoiceCount).toBeGreaterThan(0);
+
+        // 3. User releases first note
+        synth.stopLiveNote(0, 60);
+        testOutput.next();
+        expect(tsf.activeVoiceCount).toBeGreaterThan(0);
+
+        // 4. User plays second note
+        synth.playLiveNote(0, 60, 100);
+        testOutput.next();
+        expect(tsf.activeVoiceCount).toBeGreaterThan(1); // Voice 1 (fading) + Voice 2 (active)
+
+        // 5. Second note matched -> Seek to third note/end (2000ms)
+        synth.timePosition = 2000;
+        testOutput.next();
+        expect(tsf.activeVoiceCount).toBeGreaterThan(0);
+
+        // 6. User releases second note
+        synth.stopLiveNote(0, 60);
+        testOutput.next();
+
+        // 7. Wait for all voices to fade out
+        let limit = 100;
+        while (tsf.activeVoiceCount > 0 && limit > 0) {
+            testOutput.next();
+            limit--;
+        }
+
+        expect(tsf.activeVoiceCount).toBe(0);
+    });
 });
+
