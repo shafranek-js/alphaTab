@@ -192,7 +192,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                 this.channelNoteOff(this._metronomeChannel, SynthConstants.MetronomeKey);
                 this.channelNoteOn(this._metronomeChannel, SynthConstants.MetronomeKey, 95 / 127);
             } else if (m.event) {
-                this.processMidiMessage(m.event);
+                this.processMidiMessage(m.event, m.eventIndex === -1);
             }
             processedEvents.push(m);
         }
@@ -201,14 +201,14 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         for (const voice of this._voices) {
             if (voice.playingPreset !== -1) {
                 const channel: number = voice.playingChannel;
-                // channel is muted if it is either explicitley muted, or another channel is set to solo but not this one.
+                // channel is muted if it is either explicitly muted, or another channel is set to solo but not this one.
                 // exception. metronome is implicitly added in solo
                 const isChannelMuted: boolean =
                     this._mutedChannels.has(channel) ||
                     (anySolo && channel !== this._metronomeChannel && !this._soloChannels.has(channel));
 
                 if (!buffer) {
-                    if (killVoices) {
+                    if (killVoices || !voice.isLive) {
                         voice.kill();
                     }
                 } else {
@@ -220,7 +220,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         return processedEvents;
     }
 
-    public processMidiMessage(e: MidiEvent): void {
+    public processMidiMessage(e: MidiEvent, isLive: boolean = false): void {
         //Logger.debug('Midi', `Processing Midi message ${MidiEventType[e.type]}/${e.tick}`);
         const command: MidiEventType = e.type;
         switch (command) {
@@ -231,7 +231,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                 break;
             case MidiEventType.NoteOn:
                 const noteOn = e as NoteOnEvent;
-                this.channelNoteOn(noteOn.channel, noteOn.noteKey, noteOn.noteVelocity / 127.0);
+                this.channelNoteOn(noteOn.channel, noteOn.noteKey, noteOn.noteVelocity / 127.0, isLive);
                 break;
             case MidiEventType.NoteOff:
                 const noteOff = e as NoteOffEvent;
@@ -390,7 +390,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
      * @param key note value between 0 and 127 (60 being middle C)
      * @param vel velocity as a float between 0.0 (equal to note off) and 1.0 (full)
      */
-    public noteOn(presetIndex: number, key: number, vel: number): void {
+    public noteOn(presetIndex: number, key: number, vel: number, isLive: boolean = false): void {
         if (!this.presets) {
             return;
         }
@@ -451,6 +451,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
             voice.region = region;
             voice.playingPreset = presetIndex;
             voice.playingKey = key;
+            voice.isLive = isLive;
             voice.playIndex = voicePlayIndex;
             voice.noteGainDb = this.globalGainDb - region.attenuation - SynthHelper.gainToDecibels(1.0 / vel);
 
@@ -663,7 +664,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
      * @param key note value between 0 and 127 (60 being middle C)
      * @param vel velocity as a float between 0.0 (equal to note off) and 1.0 (full)
      */
-    public channelNoteOn(channel: number, key: number, vel: number): void {
+    public channelNoteOn(channel: number, key: number, vel: number, isLive: boolean = false): void {
         if (!this._channels || channel > this._channels.channelList.length) {
             return;
         }
@@ -677,7 +678,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         }
 
         this._channels.activeChannel = channel;
-        this.noteOn(this._channels.channelList[channel].presetIndex, key, vel);
+        this.noteOn(this._channels.channelList[channel].presetIndex, key, vel, isLive);
     }
 
     /**

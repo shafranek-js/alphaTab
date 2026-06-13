@@ -192,7 +192,7 @@ export class MidiFileSequencer {
 
         if (this.isPlayingMain) {
             while (this._mainState.currentTime < finalTime) {
-                if (this._fillMidiEventQueueLimited(finalTime - this._mainState.currentTime, killVoices)) {
+                if (this._fillMidiEventQueueLimited(finalTime - this._mainState.currentTime)) {
                     this._synthesizer.synthesizeSilent(SynthConstants.MicroBufferSize, killVoices);
                 }
             }
@@ -358,15 +358,11 @@ export class MidiFileSequencer {
         return anyEventsDispatched;
     }
 
-    private _fillMidiEventQueueLimited(maxMilliseconds: number, killVoices: boolean = true): boolean {
+    private _fillMidiEventQueueLimited(maxMilliseconds: number): boolean {
         let millisecondsPerBuffer: number =
             (SynthConstants.MicroBufferSize / this._synthesizer.outSampleRate) * 1000 * this.playbackSpeed;
         let endTime: number = this._internalEndTime;
-        if (maxMilliseconds > 0) {
-            // ensure that first microbuffer does not already exceed max time
-            if (maxMilliseconds < millisecondsPerBuffer) {
-                millisecondsPerBuffer = maxMilliseconds;
-            }
+        if (this._currentState.currentTime + maxMilliseconds < this._internalEndTime) {
             endTime = Math.min(this._internalEndTime, this._currentState.currentTime + maxMilliseconds);
         }
 
@@ -377,12 +373,7 @@ export class MidiFileSequencer {
             this._currentState.synthData[this._currentState.eventIndex].time < this._currentState.currentTime &&
             this._currentState.currentTime < endTime
         ) {
-            const e = this._currentState.synthData[this._currentState.eventIndex];
-            const eventType = e.event ? e.event.type : -1;
-            const isNoteEvent = eventType === MidiEventType.NoteOn || eventType === MidiEventType.NoteOff;
-            if (killVoices || !isNoteEvent) {
-                this._synthesizer.dispatchEvent(e);
-            }
+            this._synthesizer.dispatchEvent(this._currentState.synthData[this._currentState.eventIndex]);
             this._currentState.eventIndex++;
             anyEventsDispatched = true;
         }

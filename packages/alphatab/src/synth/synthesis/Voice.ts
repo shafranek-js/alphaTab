@@ -27,6 +27,7 @@ export class Voice {
     public playingPreset: number = 0;
     public playingKey: number = 0;
     public playingChannel: number = 0;
+    public isLive: boolean = false;
 
     public region: Region | null = null;
 
@@ -342,5 +343,6 @@ export class Voice {
 
     public kill(): void {
         this.playingPreset = -1;
+        this.isLive = false;
     }
 }
