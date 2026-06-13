@@ -64,6 +64,7 @@ export class AlphaSynthBase implements IAlphaSynth {
     private _synthStopping = false;
     private _isLiveMidiActive: boolean = false;
     private _isLiveMidiStopping: boolean = false;
+    private _channelTranspositionPitches: Map<number, number> = new Map<number, number>();
     private _output: ISynthOutput;
     private _loadedMidiInfo?: PositionChangedEventArgs;
     private _currentPosition: PositionChangedEventArgs = new PositionChangedEventArgs(0, 0, 0, 0, false, 120, 120);
@@ -419,7 +420,8 @@ export class AlphaSynthBase implements IAlphaSynth {
     }
 
     public playLiveNote(channel: number, noteKey: number, velocity: number): void {
-        const noteOn = new NoteOnEvent(0, 0, channel, noteKey, velocity);
+        const transposition = this._channelTranspositionPitches.get(channel) ?? 0;
+        const noteOn = new NoteOnEvent(0, 0, channel, noteKey - transposition, velocity);
         this.synthesizer.dispatchEvent(new SynthEvent(-1, noteOn));
         if (!this._isLiveMidiActive) {
             this._isLiveMidiActive = true;
@@ -433,7 +435,8 @@ export class AlphaSynthBase implements IAlphaSynth {
     }
 
     public stopLiveNote(channel: number, noteKey: number): void {
-        const noteOff = new NoteOffEvent(0, 0, channel, noteKey, 0);
+        const transposition = this._channelTranspositionPitches.get(channel) ?? 0;
+        const noteOff = new NoteOffEvent(0, 0, channel, noteKey - transposition, 0);
         this.synthesizer.dispatchEvent(new SynthEvent(-1, noteOff));
     }
 
@@ -544,6 +547,7 @@ export class AlphaSynthBase implements IAlphaSynth {
     }
 
     public setChannelTranspositionPitch(channel: number, semitones: number): void {
+        this._channelTranspositionPitches.set(channel, semitones);
         this.synthesizer.setChannelTranspositionPitch(channel, semitones);
     }
 
