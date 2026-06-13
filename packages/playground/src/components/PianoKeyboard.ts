@@ -231,7 +231,7 @@ export class PianoKeyboard implements Mountable {
     private middleOctave: number = 4;
     private pressedMidiNotes = new Set<number>();
     private hintNotes: number[] = [];
-    private activeChannels = new Map<number, number>();
+    private activeChannels = new Map<number, { channel: number; refCount: number }>();
 
     private shortcutMap: Record<string, number> = {
         a: 0, // C
@@ -577,18 +577,33 @@ export class PianoKeyboard implements Mountable {
         const resolvedChannel = (channel !== undefined && channel !== 0) 
             ? channel 
             : (this.api.tracks?.[0]?.playbackInfo?.primaryChannel ?? 0);
-        this.activeChannels.set(midi, resolvedChannel);
+
+        let state = this.activeChannels.get(midi);
+        if (state) {
+            state.refCount++;
+            state.channel = resolvedChannel;
+        } else {
+            state = { channel: resolvedChannel, refCount: 1 };
+            this.activeChannels.set(midi, state);
+        }
+
         this.api.player?.playLiveNote(resolvedChannel, midi, velocity);
     }
 
     public stopInputNote(midi: number): void {
-        const keyEl = this.root.querySelector(`[data-midi="${midi}"]`) as HTMLElement | null;
-        if (keyEl) {
-            keyEl.classList.remove('is-pressed');
+        const state = this.activeChannels.get(midi);
+        if (!state) {
+            return;
         }
-        const channel = this.activeChannels.get(midi) ?? 0;
-        this.activeChannels.delete(midi);
-        this.api.player?.stopLiveNote(channel, midi);
+        state.refCount--;
+        if (state.refCount <= 0) {
+            const keyEl = this.root.querySelector(`[data-midi="${midi}"]`) as HTMLElement | null;
+            if (keyEl) {
+                keyEl.classList.remove('is-pressed');
+            }
+            this.activeChannels.delete(midi);
+            this.api.player?.stopLiveNote(state.channel, midi);
+        }
     }
 
     private applyHintNotes(): void {
