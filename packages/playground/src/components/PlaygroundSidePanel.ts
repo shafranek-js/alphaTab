@@ -3,6 +3,7 @@ import { SystemsLayoutMode } from '@coderline/alphatab/DisplaySettings';
 import { css, html, injectStyles, type Mountable, mount, parseHtml } from '../util/Dom';
 import { FontAwesomeIcons } from '../util/Icons';
 import { applySuzukiNoteColors, getSuzukiColor, type NoteColorScheme } from '../util/noteColoring';
+import { applyPlaygroundSettingsImport, collectPlaygroundSettings } from '../util/playgroundSettingsStorage';
 import { exportGp7 } from './AudioExporter';
 import { IconButton } from './primitives/IconButton';
 import { TrackList } from './TrackList';
@@ -104,6 +105,7 @@ injectStyles(
         width: 128px;
     }
     .at-settings-control > input[type='number'],
+    .at-settings-control > input[type='text'],
     .at-settings-control > select {
         width: 128px;
         min-height: 32px;
@@ -222,6 +224,7 @@ export class PlaygroundSidePanel implements Mountable {
     private beatCursorColorFromNote: boolean = false;
     private lightThemeBgColor: string = '#ffffff';
     private darkThemeBgColor: string = '#0f172a';
+    private hiddenTracksVolume: number = 1;
 
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
 
@@ -301,6 +304,7 @@ export class PlaygroundSidePanel implements Mountable {
                 this.applyBeatCursorWidth();
             })
         );
+        this.subscriptions.push(api.midiLoaded.on(() => this.applyHiddenTracksVolume()));
 
         // Wrap rendering methods to ensure note colors are always applied synchronously
         // before serialization and rendering (especially important for worker-based renderers).
@@ -320,6 +324,7 @@ export class PlaygroundSidePanel implements Mountable {
         ) => {
             applySuzukiNoteColors(score, this.noteColorScheme === 'suzuki');
             this.originalRenderScore.call(api, score, trackIndexes, renderHints);
+            this.applyHiddenTracksVolume();
         };
 
         this.originalRenderTracks = api.renderTracks;
@@ -328,6 +333,7 @@ export class PlaygroundSidePanel implements Mountable {
                 applySuzukiNoteColors(api.score, this.noteColorScheme === 'suzuki');
             }
             this.originalRenderTracks.call(api, tracks, renderHints);
+            this.applyHiddenTracksVolume();
         };
     }
 
@@ -510,7 +516,10 @@ export class PlaygroundSidePanel implements Mountable {
                 this.fontRow('Copyright', 'display.resources.copyrightFont'),
                 this.fontRow('Title', 'display.resources.titleFont'),
                 this.fontRow('Subtitle', 'display.resources.subTitleFont'),
+                this.notationElementFontRow('Artist', alphaTab.NotationElement.ScoreArtist),
+                this.notationElementFontRow('Album', alphaTab.NotationElement.ScoreAlbum),
                 this.fontRow('Words', 'display.resources.wordsFont'),
+                this.notationElementFontRow('Music', alphaTab.NotationElement.ScoreMusic),
                 this.fontRow('Effects', 'display.resources.effectFont'),
                 this.fontRow('Timer', 'display.resources.timerFont'),
                 this.fontRow('Directions', 'display.resources.directionsFont'),
@@ -520,7 +529,7 @@ export class PlaygroundSidePanel implements Mountable {
                 this.fontRow('Grace Notes', 'display.resources.graceFont'),
                 this.fontRow('Bar Numbers', 'display.resources.barNumberFont'),
                 this.fontRow('Inline Fingering', 'display.resources.inlineFingeringFont'),
-                this.fontRow('Markers', 'display.resources.markerFont'),
+                this.fontRow('Markers / Section Text', 'display.resources.markerFont'),
                 this.fontRow('Watermark', 'display.resources.watermarkFont')
             ]),
             this.section('Display ▸ Paddings', [
@@ -541,6 +550,13 @@ export class PlaygroundSidePanel implements Mountable {
                 this.settingsNumberRow('Other Staves Left', 'display.staffPaddingLeft', 0)
             ]),
             this.section('Notation', [
+                this.notationElementToggleRow('Show Score Title', alphaTab.NotationElement.ScoreTitle),
+                this.notationElementToggleRow('Show Score Subtitle', alphaTab.NotationElement.ScoreSubTitle),
+                this.notationElementToggleRow('Show Score Artist', alphaTab.NotationElement.ScoreArtist),
+                this.notationElementToggleRow('Show Score Album', alphaTab.NotationElement.ScoreAlbum),
+                this.notationElementToggleRow('Show Score Words', alphaTab.NotationElement.ScoreWords),
+                this.notationElementToggleRow('Show Score Music', alphaTab.NotationElement.ScoreMusic),
+                this.notationElementToggleRow('Show Markers / Section Text', alphaTab.NotationElement.EffectMarker),
                 this.enumRow('Fingering', 'notation.fingeringMode', alphaTab.FingeringMode),
                 this.enumRow('Tab Rhythm Stems', 'notation.rhythmMode', alphaTab.TabRhythmMode),
                 this.settingsNumberRow('Rhythm Height', 'notation.rhythmHeight', 1),
@@ -552,6 +568,7 @@ export class PlaygroundSidePanel implements Mountable {
             ]),
             this.section('Player', [
                 this.apiRangeRow('Volume', 'masterVolume', 0, 1, 0.1),
+                this.hiddenTracksVolumeRow(),
                 this.apiRangeRow('Metronome Volume', 'metronomeVolume', 0, 1, 0.1),
                 this.apiRangeRow('Count-In Volume', 'countInVolume', 0, 1, 0.1),
                 this.apiRangeRow('Playback Speed', 'playbackSpeed', 0.1, 3, 0.1),
@@ -600,7 +617,7 @@ export class PlaygroundSidePanel implements Mountable {
                 this.stylesheetEnumRow(
                     'Other Systems Track Name Orientation',
                     'otherSystemsTrackNameOrientation',
-                    alphaTab.model.TrackNameMode
+                    alphaTab.model.TrackNameOrientation
                 ),
                 this.stylesheetToggleRow('Multi-Bar Rests', 'multiTrackMultiBarRest')
             ]),
@@ -749,9 +766,22 @@ export class PlaygroundSidePanel implements Mountable {
         if (min !== undefined) {
             input.min = String(min);
         }
-        input.addEventListener('change', () => {
+        const commit = (normalize: boolean) => {
+            if (!Number.isFinite(input.valueAsNumber)) {
+                return;
+            }
             onChange(input.valueAsNumber);
-            input.value = String(input.valueAsNumber);
+            if (normalize) {
+                input.value = String(input.valueAsNumber);
+            }
+        };
+        input.addEventListener('input', () => commit(false));
+        input.addEventListener('change', () => commit(true));
+        input.addEventListener('blur', () => commit(true));
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                commit(true);
+            }
         });
         control.appendChild(input);
         return row;
@@ -892,6 +922,31 @@ export class PlaygroundSidePanel implements Mountable {
 
     private fontRow(label: string, path: string): HTMLElement {
         const font = this.getPath(this.api.settings, path);
+        return this.buildFontRow(label, font, onChange => {
+            const target = this.getPath(this.api.settings, path);
+            if (target) {
+                onChange(target);
+                this.saveUserSetting('settings', path, target);
+                this.render();
+            }
+        });
+    }
+
+    private notationElementFontRow(label: string, element: alphaTab.NotationElement): HTMLElement {
+        const font = this.api.settings.display.resources.getFontForNotationElement(element);
+        return this.buildFontRow(label, font, onChange => {
+            onChange(font);
+            this.api.settings.display.resources.elementFonts.set(element, font);
+            this.saveAllSettings();
+            this.render();
+        });
+    }
+
+    private buildFontRow(
+        label: string,
+        font: alphaTab.model.Font | undefined,
+        applyChange: (onChange: (target: alphaTab.model.Font) => void) => void
+    ): HTMLElement {
         const initialFamilies = Array.isArray(font?.families) ? font.families.join(', ') : '';
         const initialSize = typeof font?.size === 'number' ? font.size : 12;
 
@@ -901,27 +956,35 @@ export class PlaygroundSidePanel implements Mountable {
             const familyInput = parseHtml(
                 html`<input type="text" value="${initialFamilies}" style="flex: 1; min-width: 0;" placeholder="Families" />`
             ) as HTMLInputElement;
-            familyInput.addEventListener('change', () => {
-                const target = this.getPath(this.api.settings, path);
-                if (target?.families) {
+            const commitFamily = () => {
+                applyChange(target => {
                     target.families = familyInput.value
                         .split(',')
                         .map(v => v.trim())
                         .filter(Boolean);
-                    this.saveUserSetting('settings', path, target);
-                    this.render();
+                });
+            };
+            familyInput.addEventListener('change', commitFamily);
+            familyInput.addEventListener('blur', commitFamily);
+            familyInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    commitFamily();
                 }
             });
 
             const sizeInput = parseHtml(
                 html`<input type="number" value="${initialSize}" style="width: 50px; text-align: center;" min="1" max="100" />`
             ) as HTMLInputElement;
-            sizeInput.addEventListener('change', () => {
-                const target = this.getPath(this.api.settings, path);
-                if (target) {
+            const commitSize = () => {
+                applyChange(target => {
                     target.size = Number(sizeInput.value);
-                    this.saveUserSetting('settings', path, target);
-                    this.render();
+                });
+            };
+            sizeInput.addEventListener('change', commitSize);
+            sizeInput.addEventListener('blur', commitSize);
+            sizeInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    commitSize();
                 }
             });
 
@@ -977,6 +1040,22 @@ export class PlaygroundSidePanel implements Mountable {
                 this.saveUserSetting('api', path, value);
             },
             value => value.toFixed(1)
+        );
+    }
+
+    private hiddenTracksVolumeRow(): HTMLElement {
+        return this.rangeRow(
+            'Hidden Tracks Volume',
+            0,
+            1,
+            0.05,
+            this.hiddenTracksVolume,
+            value => {
+                this.hiddenTracksVolume = this.clampVolume(value);
+                this.applyHiddenTracksVolume();
+                this.saveUserSetting('custom', 'hiddenTracksVolume', this.hiddenTracksVolume);
+            },
+            value => `${Math.round(value * 100)}%`
         );
     }
 
@@ -1069,12 +1148,14 @@ export class PlaygroundSidePanel implements Mountable {
     }
 
     private row(label: string): HTMLElement {
-        return parseHtml(html`
+        const row = parseHtml(html`
             <div class="at-settings-row">
                 <label>${label}</label>
                 <div class="at-settings-control"></div>
             </div>
         `);
+        row.dataset.settingLabel = label;
+        return row;
     }
 
     private render(): void {
@@ -1087,6 +1168,45 @@ export class PlaygroundSidePanel implements Mountable {
         if (render) {
             this.api.render();
         }
+    }
+
+    private applyHiddenTracksVolume(): void {
+        const score = this.api.score;
+        if (!score) {
+            return;
+        }
+
+        const displayedTrackIndexes = new Set(this.api.tracks.map(t => t.index));
+        const displayedChannels = new Set<number>();
+        for (const track of this.api.tracks) {
+            displayedChannels.add(track.playbackInfo.primaryChannel);
+            displayedChannels.add(track.playbackInfo.secondaryChannel);
+        }
+
+        for (const track of this.api.tracks) {
+            this.api.changeTrackVolume([track], 1);
+        }
+
+        const hiddenTracks = score.tracks.filter(track => {
+            if (displayedTrackIndexes.has(track.index)) {
+                return false;
+            }
+            return (
+                !displayedChannels.has(track.playbackInfo.primaryChannel) &&
+                !displayedChannels.has(track.playbackInfo.secondaryChannel)
+            );
+        });
+
+        for (const track of hiddenTracks) {
+            this.api.changeTrackVolume([track], this.hiddenTracksVolume);
+        }
+    }
+
+    private clampVolume(value: number): number {
+        if (!Number.isFinite(value)) {
+            return 1;
+        }
+        return Math.min(1, Math.max(0, value));
     }
 
     private getPath(root: unknown, path: string): any {
@@ -1293,11 +1413,22 @@ export class PlaygroundSidePanel implements Mountable {
                 if (data.custom.beatCursorColorFromNote !== undefined) {
                     this.beatCursorColorFromNote = Boolean(data.custom.beatCursorColorFromNote);
                 }
+                if (data.custom.hiddenTracksVolume !== undefined) {
+                    this.hiddenTracksVolume = this.clampVolume(Number(data.custom.hiddenTracksVolume));
+                }
                 if (data.custom.notationElements) {
                     for (const key of Object.keys(data.custom.notationElements)) {
                         const elemId = Number(key);
                         const val = data.custom.notationElements[key];
                         this.api.settings.notation.elements.set(elemId, val);
+                    }
+                }
+                if (data.custom.scoreInfoElementFonts) {
+                    for (const key of Object.keys(data.custom.scoreInfoElementFonts)) {
+                        const font = alphaTab.model.Font.fromJson(data.custom.scoreInfoElementFonts[key]);
+                        if (font) {
+                            this.api.settings.display.resources.elementFonts.set(Number(key), font);
+                        }
                     }
                 }
                 if (data.custom.lightThemeBgColor) {
@@ -1311,6 +1442,13 @@ export class PlaygroundSidePanel implements Mountable {
                     this.api.settings.notation.transpositionPitches = [savedTranspose];
                 }
                 this.applyBackgroundColors();
+            }
+
+            if (
+                data.settings?.['display.firstStaffLeft'] !== undefined &&
+                data.settings?.['display.firstStaffPaddingLeft'] === undefined
+            ) {
+                this.api.settings.display.firstStaffPaddingLeft = Number(data.settings['display.firstStaffLeft']);
             }
 
             this.api.updateSettings();
@@ -1406,7 +1544,13 @@ export class PlaygroundSidePanel implements Mountable {
                     barCursorColor: this.barCursorColor,
                     barCursorOpacity: this.barCursorOpacity,
                     barCursorPosition: this.barCursorPosition,
+                    beatCursorColor: this.beatCursorColor,
+                    beatCursorOpacity: this.beatCursorOpacity,
+                    beatCursorWidth: this.beatCursorWidth,
+                    beatCursorColorFromNote: this.beatCursorColorFromNote,
+                    hiddenTracksVolume: this.hiddenTracksVolume,
                     notationElements,
+                    scoreInfoElementFonts: this.serializeScoreInfoElementFonts(),
                     lightThemeBgColor: this.lightThemeBgColor,
                     darkThemeBgColor: this.darkThemeBgColor,
                     transpose: this.api.settings.notation.transpositionPitches[0] || 0
@@ -1457,7 +1601,7 @@ export class PlaygroundSidePanel implements Mountable {
                 'display.notationStaffPaddingBottom',
                 'display.effectStaffPaddingTop',
                 'display.effectStaffPaddingBottom',
-                'display.firstStaffLeft',
+                'display.firstStaffPaddingLeft',
                 'display.staffPaddingLeft',
                 'notation.fingeringMode',
                 'notation.rhythmMode',
@@ -1548,16 +1692,28 @@ export class PlaygroundSidePanel implements Mountable {
         return value;
     }
 
+    private serializeScoreInfoElementFonts(): Record<string, string> {
+        const fonts: Record<string, string> = {};
+        for (const element of [
+            alphaTab.NotationElement.ScoreTitle,
+            alphaTab.NotationElement.ScoreSubTitle,
+            alphaTab.NotationElement.ScoreArtist,
+            alphaTab.NotationElement.ScoreAlbum,
+            alphaTab.NotationElement.ScoreWords,
+            alphaTab.NotationElement.ScoreMusic,
+            alphaTab.NotationElement.ScoreWordsAndMusic
+        ]) {
+            const font = this.api.settings.display.resources.elementFonts.get(element);
+            if (font) {
+                fonts[String(element)] = font.toCssString();
+            }
+        }
+        return fonts;
+    }
+
     private exportSettings(): void {
         try {
-            const exportData: Record<string, string | null> = {};
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.startsWith('at-playground-')) {
-                    exportData[key] = localStorage.getItem(key);
-                }
-            }
-
+            const exportData = collectPlaygroundSettings(localStorage);
             const jsonString = JSON.stringify(exportData, null, 2);
             const blob = new Blob([jsonString], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -1596,31 +1752,12 @@ export class PlaygroundSidePanel implements Mountable {
                         throw new Error('Could not read file content');
                     }
                     const data = JSON.parse(result);
-                    if (typeof data !== 'object' || data === null) {
-                        throw new Error('Invalid JSON format');
-                    }
-
-                    const keys = Object.keys(data);
-                    const hasPlaygroundKeys = keys.some(k => k.startsWith('at-playground-'));
-                    if (!hasPlaygroundKeys) {
-                        throw new Error('No alphaTab playground settings found in the file.');
-                    }
-
                     if (
                         window.confirm(
                             'Importing settings will overwrite your current settings and reload the page. Continue?'
                         )
                     ) {
-                        for (const key of keys) {
-                            if (key.startsWith('at-playground-')) {
-                                const val = data[key];
-                                if (val === null) {
-                                    localStorage.removeItem(key);
-                                } else {
-                                    localStorage.setItem(key, val);
-                                }
-                            }
-                        }
+                        applyPlaygroundSettingsImport(localStorage, data);
                         window.location.reload();
                     }
                 } catch (error: any) {

@@ -128,7 +128,7 @@ export class TestUiFacade implements IUiFacade<unknown> {
     private _api!: AlphaTabApiBase<unknown>;
     private _totalResultCount: number = 0;
 
-    public constructor() {
+    public constructor(private _player: IAlphaSynth | null = null) {
         this.rootContainer = new TestUiContainer();
         this.areWorkersSupported = false;
         this.canRender = true;
@@ -224,7 +224,7 @@ export class TestUiFacade implements IUiFacade<unknown> {
     }
 
     public createWorkerPlayer(): IAlphaSynth | null {
-        return new AlphaSynth(new TestOutput(), 500);
+        return this._player ?? new AlphaSynth(new TestOutput(), 500);
     }
 
     private _cursors?: Cursors;

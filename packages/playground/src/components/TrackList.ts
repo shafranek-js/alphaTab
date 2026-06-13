@@ -18,12 +18,14 @@ export class TrackList implements Mountable {
     private selection = new Map<number, alphaTab.model.Track>();
     private unsubScoreLoaded: () => void;
     private unsubRenderStarted: () => void;
+    private unsubMidiLoaded: () => void;
 
     constructor(private api: alphaTab.AlphaTabApi) {
         this.root = parseHtml(html`<div class="at-track-list"></div>`);
 
         this.unsubScoreLoaded = api.scoreLoaded.on(score => this.rebuild(score));
         this.unsubRenderStarted = api.renderStarted.on(() => this.refreshActive());
+        this.unsubMidiLoaded = api.midiLoaded.on(() => this.applyPlaybackStates());
     }
 
     private rebuild(score: alphaTab.model.Score): void {
@@ -46,7 +48,8 @@ export class TrackList implements Mountable {
                     if (savedTrack.balance !== undefined) {
                         track.playbackInfo.balance = savedTrack.balance;
                     }
-                    track.playbackInfo.isMute = savedTrack.isMute;
+                    track.playbackInfo.isMute = savedTrack.isMute === true;
+                    track.playbackInfo.isSolo = savedTrack.isSolo === true;
                     track.playbackInfo.program = savedTrack.program;
 
                     // Synchronize beat automations for instrument and balance changes
@@ -127,6 +130,7 @@ export class TrackList implements Mountable {
             this.root.appendChild(item.root);
         }
         this.refreshActive();
+        this.applyPlaybackStates();
     }
 
     private refreshActive(): void {
@@ -139,6 +143,16 @@ export class TrackList implements Mountable {
         }
     }
 
+    private applyPlaybackStates(): void {
+        if (!this.api.score) {
+            return;
+        }
+        for (const track of this.api.score.tracks) {
+            this.api.changeTrackMute([track], track.playbackInfo.isMute);
+            this.api.changeTrackSolo([track], track.playbackInfo.isSolo);
+        }
+    }
+
     /** All TrackItem instances, in score order. */
     getItems(): readonly TrackItem[] {
         return this.items;
@@ -147,6 +161,7 @@ export class TrackList implements Mountable {
     dispose(): void {
         this.unsubScoreLoaded();
         this.unsubRenderStarted();
+        this.unsubMidiLoaded();
         for (const item of this.items) {
             item.dispose();
         }

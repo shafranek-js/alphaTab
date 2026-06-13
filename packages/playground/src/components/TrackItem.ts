@@ -154,12 +154,15 @@ export class TrackItem implements Mountable {
     private instrument: HTMLSelectElement;
     private balance: HTMLInputElement;
     private transposeLockBtn: HTMLButtonElement;
+    private playbackVolumeBase: number;
+    private midiLoadedUnsubscribe: (() => void) | null = null;
 
     constructor(
         private api: alphaTab.AlphaTabApi,
         track: alphaTab.model.Track
     ) {
         this.track = track;
+        this.playbackVolumeBase = track.playbackInfo.volume;
         this.root = parseHtml(html`
             <div class="track-item">
                 <div class="settings-item track-item-info">
@@ -226,6 +229,7 @@ export class TrackItem implements Mountable {
         this.transposeAudio = this.root.querySelector<HTMLInputElement>('.track-transpose-audio')!;
         this.transposeAudioValue = this.root.querySelector<HTMLElement>('.track-transpose-audio-value')!;
         this.instrument = this.root.querySelector<HTMLSelectElement>('.track-instrument')!;
+        this.midiLoadedUnsubscribe = this.api.midiLoaded.on(() => this.resetPlaybackVolumeBase());
 
         const isPercussion = track.staves.some(s => s.isPercussion);
         if (isPercussion) {
@@ -365,9 +369,9 @@ export class TrackItem implements Mountable {
         });
         this.volume.addEventListener('input', e => {
             e.stopPropagation();
-            const oldVolume = this.track.playbackInfo.volume;
-            this.track.playbackInfo.volume = this.volume.valueAsNumber;
-            this.api.changeTrackVolume([this.track], this.volume.valueAsNumber / Math.max(1, oldVolume));
+            const volume = this.volume.valueAsNumber;
+            this.track.playbackInfo.volume = volume;
+            this.api.changeTrackVolume([this.track], volume / Math.max(1, this.playbackVolumeBase));
             saveTrackSettings(this.api);
         });
         this.balance.addEventListener('input', e => {
@@ -468,6 +472,7 @@ export class TrackItem implements Mountable {
     }
 
     dispose(): void {
+        this.midiLoadedUnsubscribe?.();
         this.root.remove();
     }
 
@@ -568,6 +573,11 @@ export class TrackItem implements Mountable {
         });
 
         this.api.loadMidiForScore();
+    }
+
+    private resetPlaybackVolumeBase(): void {
+        this.playbackVolumeBase = this.track.playbackInfo.volume;
+        this.api.changeTrackVolume([this.track], 1);
     }
 
     private applyFullTranspose(semitones: number, reloadMidi: boolean): void {

@@ -448,13 +448,6 @@ export class AlphaTabApiBase<TSettings> {
         });
         player.readyForPlayback.on(() => {
             this._onPlayerReady();
-            if (this.tracks) {
-                for (const track of this.tracks) {
-                    const volume: number = track.playbackInfo.volume / 16;
-                    player.setChannelVolume(track.playbackInfo.primaryChannel, volume);
-                    player.setChannelVolume(track.playbackInfo.secondaryChannel, volume);
-                }
-            }
         });
         player.soundFontLoaded.on(this._onSoundFontLoaded.bind(this));
         player.soundFontLoadFailed.on(e => {

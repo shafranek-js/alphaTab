@@ -60,6 +60,10 @@ function applyFonts(settings: alphaTab.Settings): void {
     settings.display.resources.titleFont.families = ['Noto Serif'];
     settings.display.resources.subTitleFont.families = ['Noto Serif'];
     settings.display.resources.wordsFont.families = ['Noto Serif'];
+    settings.display.resources.elementFonts.get(alphaTab.NotationElement.ScoreArtist)!.families = ['Noto Serif'];
+    settings.display.resources.elementFonts.get(alphaTab.NotationElement.ScoreAlbum)!.families = ['Noto Serif'];
+    settings.display.resources.elementFonts.get(alphaTab.NotationElement.ScoreMusic)!.families = ['Noto Serif'];
+    settings.display.resources.elementFonts.get(alphaTab.NotationElement.ScoreWordsAndMusic)!.families = ['Noto Serif'];
     settings.display.resources.effectFont.families = ['Noto Serif'];
     settings.display.resources.timerFont.families = ['Noto Serif'];
     settings.display.resources.fretboardNumberFont.families = ['Noto Sans'];

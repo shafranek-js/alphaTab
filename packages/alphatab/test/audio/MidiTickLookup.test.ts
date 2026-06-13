@@ -25,7 +25,7 @@ import { Voice } from '@coderline/alphatab/model/Voice';
 import { Settings } from '@coderline/alphatab/Settings';
 import { TestPlatform } from 'test/TestPlatform';
 import { PlaybackRange } from '@coderline/alphatab/synth/PlaybackRange';
-import { FlatMidiEvent, FlatMidiEventGenerator, FlatNoteEvent } from 'test/audio/FlatMidiEventGenerator';
+import { FlatMidiEventGenerator, FlatNoteEvent, type FlatMidiEvent } from 'test/audio/FlatMidiEventGenerator';
 import { AlphaTabApiBase } from '@coderline/alphatab/AlphaTabApiBase';
 import { TestUiFacade } from 'test/visualTests/TestUiFacade';
 import { PlayerMode } from '@coderline/alphatab/PlayerSettings';
@@ -1498,14 +1498,19 @@ describe('MidiTickLookupTest', () => {
         settings.player.playerMode = PlayerMode.EnabledSynthesizer;
         const api = new AlphaTabApiBase<unknown>(facade, settings);
 
-        const promise = Promise.withResolvers<Score>();
-        api.postRenderFinished.on(() => {
-            promise.resolve(score);
+        let resolveRendered!: (score: Score) => void;
+        let rejectRendered!: (error: unknown) => void;
+        const promise = new Promise<Score>((resolve, reject) => {
+            resolveRendered = resolve;
+            rejectRendered = reject;
         });
-        api.error.on(e => promise.reject(e));
+        api.postRenderFinished.on(() => {
+            resolveRendered(score);
+        });
+        api.error.on(e => rejectRendered(e));
         api.renderScore(score, [0]);
 
-        await promise.promise;
+        await promise;
 
         for (let i = 0; i < beats.length; i++) {
             const range = generator.tickLookup.getRelativeBeatPlaybackRange(beats[i]);

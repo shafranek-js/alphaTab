@@ -573,7 +573,7 @@ export class MidiFileGenerator {
 
     private static _toChannelShort(data: number): number {
         const value: number = Math.max(-32768, Math.min(32767, data * 8 - 1));
-        return Math.max(value, -1) + 1;
+        return Math.min(Math.max(value, -1) + 1, 127);
     }
 
     private _generateMasterBar(
