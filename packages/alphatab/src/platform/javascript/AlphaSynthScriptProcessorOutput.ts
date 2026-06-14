@@ -34,8 +34,9 @@ export class AlphaSynthScriptProcessorOutput extends AlphaSynthWebAudioOutputBas
         this.source = ctx.createBufferSource();
         this.source.buffer = this.buffer;
         this.source.loop = true;
+        this.sourceStarted = false;
         this.source.connect(this._audioNode, 0, 0);
-        this.source.start(0);
+        this.startSource();
         this._audioNode.connect(ctx.destination, 0, 0);
     }
 

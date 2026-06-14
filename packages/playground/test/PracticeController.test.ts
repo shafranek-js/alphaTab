@@ -7,18 +7,20 @@ import {
     type PerformExpectedItem,
     PerformSession,
     type PracticeBeatSource,
-    PracticeSession
+    PracticeSession,
+    selectTempoCursorItem
 } from '../src/components/practice/PracticeController';
 
 describe('PracticeController', () => {
     it('builds a queue from playable beats and skips rests', () => {
         const rest = beat([], true);
-        const playable = beat([60]);
+        const playable = beatAt([60], 100, 120);
         const queue = buildPracticeQueue([rest, playable]);
 
         expect(queue).toHaveLength(1);
         expect(queue[0].beat).toBe(playable);
         expect(queue[0].expectedNotes).toEqual([60]);
+        expect(queue[0].endTick).toBe(220);
     });
 
     it('requires exact pitch by default', () => {
@@ -27,6 +29,21 @@ describe('PracticeController', () => {
         session.start();
 
         expect(session.handleMidiNote(72).type).toBe('wrong');
+        expect(session.getState().wrongCount).toBe(1);
+        expect(session.handleMidiNote(60).type).toBe('wrong');
+        expect(session.getState().wrongCount).toBe(1);
+        expect(session.handleMidiNoteOff(72).type).toBe('complete');
+    });
+
+    it('does not count the same held wrong note twice', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beat([60])]));
+        session.start();
+
+        expect(session.handleMidiNote(72).type).toBe('wrong');
+        expect(session.handleMidiNote(72).type).toBe('wrong');
+        expect(session.getState().wrongCount).toBe(1);
+        expect(session.handleMidiNoteOff(72).type).toBe('partial');
         expect(session.handleMidiNote(60).type).toBe('complete');
     });
 
@@ -37,6 +54,33 @@ describe('PracticeController', () => {
         session.start();
 
         expect(session.handleMidiNote(72).type).toBe('complete');
+    });
+
+    it('uses normalized note counts when ignoring octave', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beat([60, 72])]));
+        session.setIgnoreOctave(true);
+        session.start();
+
+        const partial = session.handleMidiNote(60);
+        expect(partial.type).toBe('partial');
+        expect(partial.state.matchedNotes).toEqual([60]);
+
+        const complete = session.handleMidiNote(84);
+        expect(complete.type).toBe('complete');
+    });
+
+    it('penalizes ignore-octave input when a normalized count exceeds expected', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beat([60, 64])]));
+        session.setIgnoreOctave(true);
+        session.start();
+
+        expect(session.handleMidiNote(60).type).toBe('partial');
+        const wrong = session.handleMidiNote(72);
+
+        expect(wrong.type).toBe('wrong');
+        expect(wrong.state.wrongCount).toBe(1);
     });
 
     it('handles chord notes in any order and reports partial progress', () => {
@@ -52,6 +96,20 @@ describe('PracticeController', () => {
         expect(session.handleMidiNote(64).type).toBe('complete');
     });
 
+    it('returns to partial when an expected chord note is released before completion', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beat([60, 64, 67])]));
+        session.start();
+
+        expect(session.handleMidiNote(60).type).toBe('partial');
+        expect(session.handleMidiNote(64).type).toBe('partial');
+        const released = session.handleMidiNoteOff(64);
+
+        expect(released.type).toBe('partial');
+        expect(released.state.matchedNotes).toEqual([60]);
+        expect(session.handleMidiNote(67).type).toBe('partial');
+    });
+
     it('does not advance a chord when the input is wrong', () => {
         const session = new PracticeSession();
         session.setQueue(buildPracticeQueue([beat([60, 64])]));
@@ -62,7 +120,161 @@ describe('PracticeController', () => {
 
         expect(wrong.type).toBe('wrong');
         expect(wrong.state.currentIndex).toBe(0);
-        expect(wrong.state.matchedNotes).toEqual([]);
+        expect(wrong.state.matchedNotes).toEqual([60]);
+        expect(wrong.state.wrongCount).toBe(1);
+        expect(session.handleMidiNoteOff(61).type).toBe('partial');
+        expect(session.handleMidiNote(64).type).toBe('complete');
+    });
+
+    it('keeps held notes across successful advance and lets noteOff complete the next item', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beat([60]), beat([62])]));
+        session.start();
+
+        const first = session.handleMidiNote(60);
+        expect(first.type).toBe('correct');
+        expect(first.state.pressedNotes).toEqual([60]);
+
+        const wrongCarry = session.handleMidiNote(62);
+        expect(wrongCarry.type).toBe('wrong');
+        expect(wrongCarry.state.wrongCount).toBe(0);
+        expect(new Set(wrongCarry.state.pressedNotes)).toEqual(new Set([60, 62]));
+
+        const fixed = session.handleMidiNoteOff(60);
+        expect(fixed.type).toBe('complete');
+    });
+
+    it('allows a sustained note across the next item until its end tick', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beatAt([60], 100, 200), beatAt([62], 200, 100)]));
+        session.start();
+
+        const first = session.handleMidiNote(60);
+        expect(first.type).toBe('correct');
+        expect(first.state.requiredNotes).toEqual([
+            { note: 60, endTick: 300, fresh: false },
+            { note: 62, endTick: 300, fresh: true }
+        ]);
+
+        const second = session.handleMidiNote(62);
+        expect(second.type).toBe('complete');
+        expect(second.state.wrongCount).toBe(0);
+    });
+
+    it('treats an expired held note as extra without increasing wrongCount for the new expected note', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beatAt([60], 100, 50), beatAt([62], 200, 100)]));
+        session.start();
+
+        expect(session.handleMidiNote(60).type).toBe('correct');
+        const wrong = session.handleMidiNote(62);
+
+        expect(wrong.type).toBe('wrong');
+        expect(wrong.state.wrongCount).toBe(0);
+        expect(session.handleMidiNoteOff(60).type).toBe('complete');
+    });
+
+    it('does not require a sustained note to keep being held after it was accepted', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beatAt([60], 100, 200), beatAt([62], 200, 100)]));
+        session.start();
+
+        expect(session.handleMidiNote(60).type).toBe('correct');
+        const released = session.handleMidiNoteOff(60);
+        expect(released.type).toBe('partial');
+
+        expect(session.handleMidiNote(62).type).toBe('complete');
+    });
+
+    it('requires a fresh attack when the same pitch repeats on the next item', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beatAt([60], 100, 200), beatAt([60], 200, 100)]));
+        session.start();
+
+        expect(session.handleMidiNote(60).type).toBe('correct');
+
+        const staleRepeat = session.handleMidiNote(60);
+        expect(staleRepeat.type).toBe('partial');
+        expect(staleRepeat.state.matchedNotes).toEqual([]);
+
+        expect(session.handleMidiNoteOff(60).type).toBe('partial');
+        expect(session.handleMidiNote(60).type).toBe('complete');
+    });
+
+    it('extends sustained allowed notes through a tie destination without requiring a new attack', () => {
+        const tieDestination = { realValue: 60, isTieDestination: true } as PracticeBeatSource['notes'][number];
+        const origin = { realValue: 60, tieDestination };
+        const firstBeat = beatAt([], 100, 100, [origin]);
+        const tiedBeat = beatAt([], 200, 100, [tieDestination]);
+        const nextBeat = beatAt([64], 250, 100);
+        tieDestination.beat = tiedBeat;
+
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([firstBeat, tiedBeat, nextBeat]));
+        session.start();
+
+        const first = session.handleMidiNote(60);
+        expect(first.type).toBe('correct');
+        expect(first.state.requiredNotes).toEqual([
+            { note: 60, endTick: 300, fresh: false },
+            { note: 64, endTick: 350, fresh: true }
+        ]);
+
+        expect(session.handleMidiNote(64).type).toBe('complete');
+    });
+
+    it('uses active required counts when ignoring octave across sustained notes', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beatAt([60], 100, 300), beatAt([72, 76], 200, 100)]));
+        session.setIgnoreOctave(true);
+        session.start();
+
+        expect(session.handleMidiNote(60).type).toBe('correct');
+        expect(session.handleMidiNote(72).type).toBe('partial');
+
+        const wrong = session.handleMidiNote(84);
+        expect(wrong.type).toBe('wrong');
+        expect(wrong.state.wrongCount).toBe(1);
+    });
+
+    it('can advance on noteOff after an extra note blocked already matched fresh notes', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beat([60, 64])]));
+        session.start();
+
+        expect(session.handleMidiNote(60).type).toBe('partial');
+        expect(session.handleMidiNote(61).type).toBe('wrong');
+        expect(session.handleMidiNote(64).type).toBe('wrong');
+        expect(session.handleMidiNoteOff(61).type).toBe('complete');
+    });
+
+    it('removes held notes after complete when noteOff arrives while inactive', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beat([60])]));
+        session.start();
+
+        expect(session.handleMidiNote(60).type).toBe('complete');
+        expect(session.getState().pressedNotes).toEqual([60]);
+
+        const released = session.handleMidiNoteOff(60);
+        expect(released.type).toBe('ignored');
+        expect(released.state.pressedNotes).toEqual([]);
+    });
+
+    it('clears held state when ignore-octave changes or pressed notes are cleared', () => {
+        const session = new PracticeSession();
+        session.setQueue(buildPracticeQueue([beat([60])]));
+        session.start();
+
+        expect(session.handleMidiNote(61).type).toBe('wrong');
+        expect(session.getState().pressedNotes).toEqual([61]);
+
+        session.setIgnoreOctave(true);
+        expect(session.getState().pressedNotes).toEqual([]);
+
+        expect(session.handleMidiNote(61).type).toBe('wrong');
+        session.clearPressedNotes();
+        expect(session.getState().pressedNotes).toEqual([]);
     });
 
     it('can seek to the beat closest to a given tick', () => {
@@ -168,6 +380,7 @@ describe('PracticeController', () => {
             session.start();
 
             expect(session.handleMidiNote(60).type).toBe('correct');
+            expect(session.handleMidiNoteOff(60).type).toBe('partial');
             const looped = session.handleMidiNote(62);
 
             if (looped.type !== 'looped') {
@@ -205,6 +418,8 @@ describe('PracticeController', () => {
             expect(session.getState().cleanPassStreak).toBe(1);
 
             expect(session.handleMidiNote(61).type).toBe('wrong');
+            expect(session.handleMidiNoteOff(61).type).toBe('partial');
+            expect(session.handleMidiNoteOff(60).type).toBe('partial');
             const result = session.handleMidiNote(60);
 
             expect(result.type).toBe('looped');
@@ -227,6 +442,27 @@ describe('PracticeController', () => {
     });
 
     describe('perform session', () => {
+        it('selects a tempo cursor item from playback ticks', () => {
+            const b1 = beatAt([60], 100);
+            const b2 = beatAt([62], 200);
+            const b3 = beatAt([64], 300);
+            const queue = buildPracticeQueue([b1, b2, b3]);
+
+            expect(selectTempoCursorItem(queue, 50)?.beat).toBe(b1);
+            expect(selectTempoCursorItem(queue, 250)?.beat).toBe(b2);
+            expect(selectTempoCursorItem(queue, 350)?.beat).toBe(b3);
+            expect(selectTempoCursorItem(queue, 350, true)).toBeNull();
+        });
+
+        it('moves the tempo cursor back to the start after a loop wrap', () => {
+            const b1 = beatAt([60], 100);
+            const b2 = beatAt([62], 200);
+            const queue = buildPracticeQueue([b1, b2]);
+
+            expect(selectTempoCursorItem(queue, 220)?.beat).toBe(b2);
+            expect(selectTempoCursorItem(queue, 100)?.beat).toBe(b1);
+        });
+
         it('ignores scoring before expected wall timestamps are ready', () => {
             const session = performSession([performItem(60, 100)]);
 
@@ -305,16 +541,29 @@ describe('PracticeController', () => {
     });
 });
 
-function beat(notes: number[], isRest = false): PracticeBeatSource {
-    return {
+function beat(notes: number[], isRest = false, noteSources?: PracticeBeatSource['notes']): PracticeBeatSource {
+    const b: PracticeBeatSource = {
         isRest,
-        notes: notes.map(realValue => ({ realValue }))
+        notes: noteSources ?? notes.map(realValue => ({ realValue }))
     };
+    for (const note of b.notes) {
+        (note as any).beat = b;
+    }
+    return b;
 }
 
-function beatAt(notes: number[], startTick: number): PracticeBeatSource {
-    const b = beat(notes);
-    (b as any).absolutePlaybackStart = startTick;
+function beatAt(
+    notes: number[],
+    startTick: number,
+    playbackDuration = 1,
+    noteSources?: PracticeBeatSource['notes']
+): PracticeBeatSource {
+    const b = beat(notes, false, noteSources);
+    b.absolutePlaybackStart = startTick;
+    b.playbackDuration = playbackDuration;
+    for (const note of b.notes) {
+        (note as any).beat = b;
+    }
     return b;
 }
 

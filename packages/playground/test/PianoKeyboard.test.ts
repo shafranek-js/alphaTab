@@ -59,8 +59,8 @@ globalThis.window = {
     removeEventListener: vi.fn()
 } as any;
 
-describe('PianoKeyboard live note queueing', () => {
-    it('implements queueing for repeated notes', async () => {
+describe('PianoKeyboard live note handling', () => {
+    it('keeps repeated noteOn idempotent to avoid stacked live voices', async () => {
         // Use dynamic import to avoid hoisting issues, ensuring document is mocked first
         const { PianoKeyboard } = await import('../src/components/PianoKeyboard');
 
@@ -77,8 +77,10 @@ describe('PianoKeyboard live note queueing', () => {
             tracks: [
                 {
                     playbackInfo: {
-                        primaryChannel: 1
-                    }
+                        primaryChannel: 1,
+                        program: 24
+                    },
+                    isPercussion: false
                 }
             ],
             player: mockPlayer
@@ -88,31 +90,47 @@ describe('PianoKeyboard live note queueing', () => {
 
         // 1. Play note 60 (first press)
         keyboard.playInputNote(60, 100, 1);
+        expect(mockPlayer.setChannelProgram).toHaveBeenLastCalledWith(1, 24, false);
+        expect(mockPlayer.setChannelProgram).toHaveBeenCalledTimes(1);
         expect(mockPlayer.playLiveNote).toHaveBeenLastCalledWith(1, 60, 100);
         expect(mockPlayer.playLiveNote).toHaveBeenCalledTimes(1);
         expect(mockPlayer.stopLiveNote).not.toHaveBeenCalled();
 
-        // 2. Play note 60 (second press - overlap)
+        // 2. Play note 60 again without noteOff. This should not stack a second live voice.
         keyboard.playInputNote(60, 100, 1);
-        expect(mockPlayer.playLiveNote).toHaveBeenLastCalledWith(1, 60, 100);
-        expect(mockPlayer.playLiveNote).toHaveBeenCalledTimes(2);
+        expect(mockPlayer.setChannelProgram).toHaveBeenCalledTimes(1);
+        expect(mockPlayer.playLiveNote).toHaveBeenCalledTimes(1);
         expect(mockPlayer.stopLiveNote).not.toHaveBeenCalled();
 
         // Channel 0 is a valid explicit live input channel and must not be replaced by the first score track channel.
         keyboard.playInputNote(61, 100, 0);
+        expect(mockPlayer.setChannelProgram).toHaveBeenLastCalledWith(0, 24, false);
+        expect(mockPlayer.setChannelProgram).toHaveBeenCalledTimes(2);
         expect(mockPlayer.playLiveNote).toHaveBeenLastCalledWith(0, 61, 100);
+        expect(mockPlayer.playLiveNote).toHaveBeenCalledTimes(2);
+
+        // A different note on an already configured channel reuses the live channel program.
+        keyboard.playInputNote(62, 100, 1);
+        expect(mockPlayer.setChannelProgram).toHaveBeenCalledTimes(2);
+        expect(mockPlayer.playLiveNote).toHaveBeenLastCalledWith(1, 62, 100);
         expect(mockPlayer.playLiveNote).toHaveBeenCalledTimes(3);
 
-        // 3. Stop note 60 (first release)
-        keyboard.stopInputNote(60);
-        // Should trigger stopLiveNote for the first channel (1)
+        // 3. Switching channel for the same midi note stops the previous voice before starting a new one.
+        keyboard.playInputNote(60, 100, 2);
+        expect(mockPlayer.setChannelProgram).toHaveBeenLastCalledWith(2, 24, false);
+        expect(mockPlayer.setChannelProgram).toHaveBeenCalledTimes(3);
         expect(mockPlayer.stopLiveNote).toHaveBeenLastCalledWith(1, 60);
         expect(mockPlayer.stopLiveNote).toHaveBeenCalledTimes(1);
+        expect(mockPlayer.playLiveNote).toHaveBeenLastCalledWith(2, 60, 100);
+        expect(mockPlayer.playLiveNote).toHaveBeenCalledTimes(4);
 
-        // 4. Stop note 60 (second release)
+        // 4. Stop note 60
         keyboard.stopInputNote(60);
-        // Should trigger stopLiveNote again for the second channel (1)
-        expect(mockPlayer.stopLiveNote).toHaveBeenLastCalledWith(1, 60);
+        expect(mockPlayer.stopLiveNote).toHaveBeenLastCalledWith(2, 60);
+        expect(mockPlayer.stopLiveNote).toHaveBeenCalledTimes(2);
+
+        // 5. Duplicate noteOff is ignored.
+        keyboard.stopInputNote(60);
         expect(mockPlayer.stopLiveNote).toHaveBeenCalledTimes(2);
     });
 

@@ -133,6 +133,7 @@ export abstract class AlphaSynthWebAudioOutputBase implements ISynthOutput {
     protected context: AudioContext | null = null;
     protected buffer: AudioBuffer | null = null;
     protected source: AudioBufferSourceNode | null = null;
+    protected sourceStarted: boolean = false;
 
     private _resumeHandler?: () => void;
 
@@ -217,14 +218,30 @@ export abstract class AlphaSynthWebAudioOutputBase implements ISynthOutput {
         this.source = ctx.createBufferSource();
         this.source.buffer = this.buffer;
         this.source.loop = true;
+        this.sourceStarted = false;
     }
 
     public pause(): void {
         if (this.source) {
-            this.source.stop(0);
+            if (this.sourceStarted) {
+                this.source.stop(0);
+            }
             this.source.disconnect();
         }
         this.source = null;
+        this.sourceStarted = false;
+    }
+
+    protected startSource(): void {
+        if (!this.source) {
+            return;
+        }
+        if (this.sourceStarted) {
+            return;
+        }
+
+        this.source.start(0);
+        this.sourceStarted = true;
     }
 
     public destroy(): void {

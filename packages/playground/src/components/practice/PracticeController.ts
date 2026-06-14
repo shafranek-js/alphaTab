@@ -4,11 +4,16 @@ export interface PracticeNoteSource {
     realValue: number;
     isVisible?: boolean;
     isTieDestination?: boolean;
+    durationPercent?: number;
+    tieDestination?: PracticeNoteSource | null;
+    beat?: PracticeBeatSource;
 }
 
 export interface PracticeBeatSource {
     notes: readonly PracticeNoteSource[];
     isRest: boolean;
+    absolutePlaybackStart?: number;
+    playbackDuration?: number;
 }
 
 export interface PracticeTickLookup<TBeat extends PracticeBeatSource> {
@@ -18,7 +23,20 @@ export interface PracticeTickLookup<TBeat extends PracticeBeatSource> {
 export interface PracticeQueueItem<TBeat extends PracticeBeatSource = PracticeBeatSource> {
     beat: TBeat;
     expectedNotes: number[];
+    expectedNoteDetails: PracticeExpectedNote[];
     startTick: number;
+    endTick: number;
+}
+
+export interface PracticeExpectedNote {
+    note: number;
+    endTick: number;
+}
+
+export interface PracticeRequiredNote {
+    note: number;
+    endTick: number;
+    fresh: boolean;
 }
 
 export interface PracticeRange {
@@ -33,6 +51,8 @@ export interface PracticeSessionState<TBeat extends PracticeBeatSource = Practic
     total: number;
     currentItem: PracticeQueueItem<TBeat> | null;
     matchedNotes: number[];
+    pressedNotes: number[];
+    requiredNotes: PracticeRequiredNote[];
     ignoreOctave: boolean;
     loopEnabled: boolean;
     currentPass: number;
@@ -44,7 +64,7 @@ export interface PracticeSessionState<TBeat extends PracticeBeatSource = Practic
 export type PracticeInputResult<TBeat extends PracticeBeatSource = PracticeBeatSource> =
     | { type: 'ignored'; state: PracticeSessionState<TBeat> }
     | { type: 'wrong'; inputNote: number; expectedNotes: number[]; state: PracticeSessionState<TBeat> }
-    | { type: 'partial'; inputNote: number; matchedNote: number; state: PracticeSessionState<TBeat> }
+    | { type: 'partial'; inputNote: number; matchedNote?: number; state: PracticeSessionState<TBeat> }
     | { type: 'correct'; inputNote: number; item: PracticeQueueItem<TBeat>; state: PracticeSessionState<TBeat> }
     | {
           type: 'looped';
@@ -136,31 +156,87 @@ export function buildPracticeQueue<TBeat extends PracticeBeatSource>(
             continue;
         }
 
-        const expectedNotes = uniqueNotes(
-            beat.notes
-                .filter(note => note.isVisible !== false && note.isTieDestination !== true)
-                .map(note => note.realValue)
-                .filter(value => value > 0)
-        );
-        if (expectedNotes.length === 0) {
+        const playableNotes = beat.notes.filter(note => note.isVisible !== false && note.isTieDestination !== true);
+        if (playableNotes.length === 0) {
             continue;
         }
 
-        let startTick = (beat as any).absolutePlaybackStart;
-        if (typeof startTick !== 'number') {
-            const cacheTick = tickLookup?.getBeatStart(beat);
-            startTick = typeof cacheTick === 'number' && cacheTick > 0 ? cacheTick : fallbackStartTick;
+        const startTick = getBeatStartTick(beat, fallbackStartTick, tickLookup);
+        const noteEndTicks = new Map<number, number>();
+        for (const note of playableNotes) {
+            if (note.realValue <= 0) {
+                continue;
+            }
+
+            const endTick = getNoteEndTick(note, beat, startTick);
+            noteEndTicks.set(note.realValue, Math.max(noteEndTicks.get(note.realValue) ?? Number.NEGATIVE_INFINITY, endTick));
         }
+
+        if (noteEndTicks.size === 0) {
+            continue;
+        }
+
+        const expectedNotes = Array.from(noteEndTicks.keys());
+        const expectedNoteDetails = expectedNotes.map(note => ({ note, endTick: noteEndTicks.get(note)! }));
 
         items.push({
             beat,
             expectedNotes,
-            startTick
+            expectedNoteDetails,
+            startTick,
+            endTick: Math.max(startTick + getBeatPlaybackDuration(beat), ...expectedNoteDetails.map(note => note.endTick))
         });
         fallbackStartTick++;
     }
 
     return items.sort((a, b) => a.startTick - b.startTick);
+}
+
+function getBeatStartTick<TBeat extends PracticeBeatSource>(
+    beat: TBeat,
+    fallbackStartTick: number,
+    tickLookup?: PracticeTickLookup<TBeat> | null
+): number {
+    if (typeof beat.absolutePlaybackStart === 'number') {
+        return beat.absolutePlaybackStart;
+    }
+
+    const cacheTick = tickLookup?.getBeatStart(beat);
+    if (typeof cacheTick === 'number' && cacheTick > 0) {
+        return cacheTick;
+    }
+
+    return fallbackStartTick;
+}
+
+function getBeatPlaybackDuration(beat: PracticeBeatSource): number {
+    return typeof beat.playbackDuration === 'number' && beat.playbackDuration > 0 ? beat.playbackDuration : 1;
+}
+
+function getNoteEndTick(note: PracticeNoteSource, beat: PracticeBeatSource, startTick: number): number {
+    let endTick = startTick + getNotePlaybackDuration(note, beat);
+    const visited = new Set<PracticeNoteSource>();
+    let tieDestination = note.tieDestination;
+
+    while (tieDestination && !visited.has(tieDestination)) {
+        visited.add(tieDestination);
+        const destinationBeat = tieDestination.beat;
+        if (!destinationBeat) {
+            break;
+        }
+
+        const destinationStart =
+            typeof destinationBeat.absolutePlaybackStart === 'number' ? destinationBeat.absolutePlaybackStart : endTick;
+        endTick = Math.max(endTick, destinationStart + getNotePlaybackDuration(tieDestination, destinationBeat));
+        tieDestination = tieDestination.tieDestination;
+    }
+
+    return endTick;
+}
+
+function getNotePlaybackDuration(note: PracticeNoteSource, beat: PracticeBeatSource): number {
+    const duration = getBeatPlaybackDuration(beat);
+    return Math.max(1, duration * (note.durationPercent ?? 1));
 }
 
 export function filterPracticeQueueByRange<TBeat extends PracticeBeatSource>(
@@ -171,6 +247,25 @@ export function filterPracticeQueueByRange<TBeat extends PracticeBeatSource>(
         return queue;
     }
     return queue.filter(item => item.startTick >= range.startTick && item.startTick < range.endTick);
+}
+
+export function selectTempoCursorItem<TBeat extends PracticeBeatSource>(
+    queue: readonly PracticeQueueItem<TBeat>[],
+    currentTick: number,
+    completed = false
+): PracticeQueueItem<TBeat> | null {
+    if (completed || queue.length === 0) {
+        return null;
+    }
+
+    let current = queue[0];
+    for (const item of queue) {
+        if (item.startTick > currentTick) {
+            break;
+        }
+        current = item;
+    }
+    return current;
 }
 
 export function getPlayableBeatsFromTracks(tracks: readonly alphaTab.model.Track[]): alphaTab.model.Beat[] {
@@ -192,7 +287,10 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
     private currentIndex = 0;
     private running = false;
     private complete = false;
-    private matchedNotes = new Set<number>();
+    private pressedNotes = new Map<number, number>();
+    private activeRequiredNotes: PracticeRequiredNote[] = [];
+    private activeRequiredIndex = -1;
+    private penalizedWrongNotes = new Set<number>();
     private ignoreOctave = false;
     private loopEnabled = false;
     private currentPass = 1;
@@ -207,7 +305,7 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
 
     public setIgnoreOctave(ignoreOctave: boolean): void {
         this.ignoreOctave = ignoreOctave;
-        this.matchedNotes.clear();
+        this.clearPressedNotes();
     }
 
     public setLoopEnabled(loopEnabled: boolean): void {
@@ -223,6 +321,8 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
     }
 
     public seekToTick(tick: number): void {
+        this.clearPressedNotes();
+        this.clearActiveRequiredNotes();
         if (this.queue.length === 0) {
             this.currentIndex = 0;
             return;
@@ -241,20 +341,28 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
         }
 
         this.currentIndex = targetIndex;
-        this.matchedNotes.clear();
+        if (this.running) {
+            this.setActiveRequiredForIndex(this.currentIndex);
+        }
     }
 
     public start(): PracticeSessionState<TBeat> {
         this.currentIndex = Math.min(this.currentIndex, Math.max(0, this.queue.length - 1));
         this.running = this.queue.length > 0;
         this.complete = this.queue.length === 0;
-        this.matchedNotes.clear();
+        this.clearPressedNotes();
+        if (this.running) {
+            this.setActiveRequiredForIndex(this.currentIndex);
+        } else {
+            this.clearActiveRequiredNotes();
+        }
         return this.getState();
     }
 
     public stop(): PracticeSessionState<TBeat> {
         this.running = false;
-        this.matchedNotes.clear();
+        this.clearPressedNotes();
+        this.clearActiveRequiredNotes();
         return this.getState();
     }
 
@@ -262,7 +370,8 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
         this.currentIndex = 0;
         this.running = false;
         this.complete = false;
-        this.matchedNotes.clear();
+        this.clearPressedNotes();
+        this.clearActiveRequiredNotes();
         this.currentPass = 1;
         this.cleanPassStreak = 0;
         this.wrongCount = 0;
@@ -276,10 +385,45 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
             return { type: 'ignored', state: this.getState() };
         }
 
-        const matchedNote = this.findMatchingExpectedNote(currentItem.expectedNotes, inputNote);
-        if (matchedNote === null) {
-            this.matchedNotes.clear();
+        const wasAlreadyPressed = this.pressedNotes.has(inputNote);
+        this.pressedNotes.set(inputNote, wasAlreadyPressed ? this.pressedNotes.get(inputNote)! : 0);
+        if (
+            !wasAlreadyPressed &&
+            this.isNewWrongNote(inputNote) &&
+            !this.penalizedWrongNotes.has(inputNote)
+        ) {
             this.wrongCount++;
+            this.penalizedWrongNotes.add(inputNote);
+        }
+
+        return this.evaluateHeldState(inputNote);
+    }
+
+    public handleMidiNoteOff(inputNote: number): PracticeInputResult<TBeat> {
+        this.pressedNotes.delete(inputNote);
+        this.penalizedWrongNotes.delete(inputNote);
+        const currentItem = this.queue[this.currentIndex];
+        if (!this.running || !currentItem) {
+            return { type: 'ignored', state: this.getState() };
+        }
+
+        return this.evaluateHeldState(inputNote);
+    }
+
+    public clearPressedNotes(): void {
+        this.pressedNotes.clear();
+        this.penalizedWrongNotes.clear();
+    }
+
+    private evaluateHeldState(inputNote: number): PracticeInputResult<TBeat> {
+        const currentItem = this.queue[this.currentIndex];
+        if (!this.running || !currentItem) {
+            return { type: 'ignored', state: this.getState() };
+        }
+
+        this.ensureActiveRequiredForCurrentItem();
+        const comparison = this.compareHeldState(currentItem);
+        if (comparison.hasExtraNotes) {
             return {
                 type: 'wrong',
                 inputNote,
@@ -288,19 +432,18 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
             };
         }
 
-        this.matchedNotes.add(matchedNote);
-        if (this.matchedNotes.size < currentItem.expectedNotes.length) {
+        if (!comparison.isComplete) {
             return {
                 type: 'partial',
                 inputNote,
-                matchedNote,
                 state: this.getState()
             };
         }
 
         const completedItem = currentItem;
         this.currentIndex++;
-        this.matchedNotes.clear();
+        this.incrementPressedAges();
+        this.penalizedWrongNotes.clear();
         if (this.currentIndex >= this.queue.length) {
             if (this.loopEnabled) {
                 const wrongCount = this.wrongCount;
@@ -312,6 +455,7 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
                 this.currentIndex = 0;
                 this.running = true;
                 this.complete = false;
+                this.setActiveRequiredForIndex(this.currentIndex);
                 return {
                     type: 'looped',
                     inputNote,
@@ -323,6 +467,7 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
             }
             this.running = false;
             this.complete = true;
+            this.clearActiveRequiredNotes();
             return {
                 type: 'complete',
                 inputNote,
@@ -331,6 +476,7 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
             };
         }
 
+        this.advanceActiveRequiredToIndex(this.currentIndex);
         return {
             type: 'correct',
             inputNote,
@@ -340,13 +486,16 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
     }
 
     public getState(): PracticeSessionState<TBeat> {
+        const currentItem = this.queue[this.currentIndex] ?? null;
         return {
             running: this.running,
             complete: this.complete,
             currentIndex: this.currentIndex,
             total: this.queue.length,
-            currentItem: this.queue[this.currentIndex] ?? null,
-            matchedNotes: Array.from(this.matchedNotes),
+            currentItem,
+            matchedNotes: currentItem ? this.getMatchedNotes(currentItem) : [],
+            pressedNotes: Array.from(this.pressedNotes.keys()),
+            requiredNotes: this.running ? this.activeRequiredNotes.map(note => ({ ...note })) : [],
             ignoreOctave: this.ignoreOctave,
             loopEnabled: this.loopEnabled,
             currentPass: this.currentPass,
@@ -356,17 +505,116 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
         };
     }
 
-    private findMatchingExpectedNote(expectedNotes: number[], inputNote: number): number | null {
-        const normalizedInput = this.normalize(inputNote);
-        for (const expectedNote of expectedNotes) {
-            if (this.matchedNotes.has(expectedNote)) {
-                continue;
-            }
-            if (this.normalize(expectedNote) === normalizedInput) {
-                return expectedNote;
+    private compareHeldState(currentItem: PracticeQueueItem<TBeat>): { hasExtraNotes: boolean; isComplete: boolean } {
+        const pressedCounts = this.countNormalized(this.pressedNotes.keys());
+        const requiredCounts = this.countNormalized(this.activeRequiredNotes.map(note => note.note));
+
+        for (const [note, pressedCount] of pressedCounts) {
+            if (pressedCount > (requiredCounts.get(note) ?? 0)) {
+                return { hasExtraNotes: true, isComplete: false };
             }
         }
-        return null;
+
+        const freshPressedCounts = this.countNormalized(this.getFreshPressedNotes());
+        const freshRequiredCounts = this.countNormalized(currentItem.expectedNotes);
+        for (const [note, expectedCount] of freshRequiredCounts) {
+            if ((freshPressedCounts.get(note) ?? 0) < expectedCount) {
+                return { hasExtraNotes: false, isComplete: false };
+            }
+        }
+
+        return { hasExtraNotes: false, isComplete: true };
+    }
+
+    private getMatchedNotes(currentItem: PracticeQueueItem<TBeat>): number[] {
+        const remainingPressedCounts = this.countNormalized(this.getFreshPressedNotes());
+        const matchedNotes: number[] = [];
+        for (const expectedNote of currentItem.expectedNotes) {
+            const normalized = this.normalize(expectedNote);
+            const remaining = remainingPressedCounts.get(normalized) ?? 0;
+            if (remaining > 0) {
+                matchedNotes.push(expectedNote);
+                remainingPressedCounts.set(normalized, remaining - 1);
+            }
+        }
+        return matchedNotes;
+    }
+
+    private isNewWrongNote(inputNote: number): boolean {
+        this.ensureActiveRequiredForCurrentItem();
+        const pressedCounts = this.countNormalized(this.pressedNotes.keys());
+        const expectedCounts = this.countNormalized(this.activeRequiredNotes.map(note => note.note));
+        const normalizedInput = this.normalize(inputNote);
+        return (pressedCounts.get(normalizedInput) ?? 0) > (expectedCounts.get(normalizedInput) ?? 0);
+    }
+
+    private ensureActiveRequiredForCurrentItem(): void {
+        if (this.activeRequiredIndex !== this.currentIndex) {
+            this.setActiveRequiredForIndex(this.currentIndex);
+        }
+    }
+
+    private setActiveRequiredForIndex(index: number): void {
+        this.activeRequiredNotes = [];
+        this.activeRequiredIndex = index;
+        const item = this.queue[index];
+        if (item) {
+            this.addFreshRequiredNotes(item);
+        }
+    }
+
+    private advanceActiveRequiredToIndex(index: number): void {
+        const item = this.queue[index];
+        if (!item) {
+            this.clearActiveRequiredNotes();
+            return;
+        }
+
+        this.activeRequiredNotes = this.activeRequiredNotes
+            .filter(note => note.endTick > item.startTick)
+            .map(note => ({ ...note, fresh: false }));
+        this.activeRequiredIndex = index;
+        this.addFreshRequiredNotes(item);
+    }
+
+    private addFreshRequiredNotes(item: PracticeQueueItem<TBeat>): void {
+        for (const note of item.expectedNoteDetails) {
+            this.activeRequiredNotes.push({
+                note: note.note,
+                endTick: note.endTick,
+                fresh: true
+            });
+        }
+    }
+
+    private clearActiveRequiredNotes(): void {
+        this.activeRequiredNotes = [];
+        this.activeRequiredIndex = -1;
+    }
+
+    private incrementPressedAges(): void {
+        for (const [note, age] of this.pressedNotes) {
+            this.pressedNotes.set(note, age + 1);
+        }
+    }
+
+    private getFreshPressedNotes(): number[] {
+        const notes: number[] = [];
+        for (const [note, age] of this.pressedNotes) {
+            if (age === 0) {
+                notes.push(note);
+            }
+        }
+        return notes;
+    }
+
+    private countNormalized(notes: Iterable<number>): Map<number, number> {
+        const counts = new Map<number, number>();
+        for (const note of notes) {
+            const normalized = this.normalize(note);
+            counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+        }
+        return counts;
     }
 
     private normalize(note: number): number {
@@ -626,10 +874,6 @@ export class PerformSession<TBeat extends PracticeBeatSource = PracticeBeatSourc
     private normalize(note: number): number {
         return this.settings.ignoreOctave ? note % 12 : note;
     }
-}
-
-function uniqueNotes(notes: number[]): number[] {
-    return Array.from(new Set(notes)).sort((a, b) => a - b);
 }
 
 function roundToStep(value: number, step: number): number {

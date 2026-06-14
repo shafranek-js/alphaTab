@@ -221,10 +221,11 @@ export class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
     public override play(): void {
         super.play();
         const ctx = this.context!;
+        const source = this.source;
         // create a script processor node which will replace the silence with the generated audio
         BrowserUiFacade.createAlphaSynthAudioWorklet(ctx, this._settings).then(
             () => {
-                this._worklet = new AudioWorkletNode(ctx!, 'alphatab', {
+                const worklet = new AudioWorkletNode(ctx!, 'alphatab', {
                     numberOfOutputs: 1,
                     outputChannelCount: [2],
                     processorOptions: {
@@ -232,16 +233,22 @@ export class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
                     }
                 }) as AudioWorkletNode<IAlphaSynthWorkerMessage>;
 
-                this._worklet.port.addEventListener('message', this._boundHandleMessage);
-                this._worklet.port.start();
-                this.source!.connect(this._worklet);
-                this.source!.start(0);
-                this._worklet.connect(ctx!.destination);
+                worklet.port.addEventListener('message', this._boundHandleMessage);
+                worklet.port.start();
+                if (!source || !this.source || this.source !== source) {
+                    worklet.port.removeEventListener('message', this._boundHandleMessage);
+                    worklet.disconnect();
+                    return;
+                }
+                this._worklet = worklet;
+                source.connect(worklet);
+                this.startSource();
+                worklet.connect(ctx!.destination);
 
                 const pending = this._pendingEvents;
                 if (pending) {
                     for (const e of pending) {
-                        this._worklet.port.postMessage(e);
+                        worklet.port.postMessage(e);
                     }
                     this._pendingEvents = undefined;
                 }

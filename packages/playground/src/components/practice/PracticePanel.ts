@@ -369,10 +369,13 @@ export class PracticePanel implements Mountable {
 
     public handleMidiNoteOff(note: MidiNoteInput): void {
         this.keyboardPanel?.stopInputNote(note.note);
+        const result = this.session.handleMidiNoteOff(note.note);
+        this.applyInputResult(result);
     }
 
     public clearActiveInput(): void {
         this.keyboardPanel?.stopAllInputNotes();
+        this.session.clearPressedNotes();
     }
 
     private applyInputResult(result: PracticeInputResult<alphaTab.model.Beat>): void {

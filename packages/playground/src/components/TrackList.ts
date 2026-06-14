@@ -68,15 +68,26 @@ export class TrackList implements Mountable {
                             }
                         }
                     }
-                    if (savedTrack.transpositionPitch !== undefined) {
-                        this.api.changeTrackTranspositionPitch([track], savedTrack.transpositionPitch);
+                    const transposeLocked = savedTrack.transposeLocked !== false;
+                    let transposeFull =
+                        savedTrack.transposeFull !== undefined ? Number(savedTrack.transposeFull) : undefined;
+                    const transpositionPitch =
+                        savedTrack.transpositionPitch !== undefined ? Number(savedTrack.transpositionPitch) : undefined;
+                    if (transposeLocked) {
+                        transposeFull = transposeFull ?? transpositionPitch ?? 0;
                     }
-                    if (savedTrack.transposeFull !== undefined) {
+                    if (transpositionPitch !== undefined || transposeFull !== undefined) {
+                        this.api.changeTrackTranspositionPitch(
+                            [track],
+                            transposeLocked ? (transposeFull ?? 0) : (transpositionPitch ?? 0)
+                        );
+                    }
+                    if (transposeFull !== undefined) {
                         const pitches = this.api.settings.notation.transpositionPitches;
                         while (pitches.length < track.index + 1) {
                             pitches.push(0);
                         }
-                        pitches[track.index] = savedTrack.transposeFull;
+                        pitches[track.index] = transposeFull;
                         settingsChanged = true;
                     }
                     if (savedTrack.staves) {

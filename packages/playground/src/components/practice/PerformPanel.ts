@@ -12,9 +12,11 @@ import {
     type PerformPassResult,
     type PerformSettings,
     PerformSession,
-    type PracticeQueueItem
+    type PracticeQueueItem,
+    selectTempoCursorItem
 } from './PracticeController';
 import { PracticeOverlay } from './PracticeOverlay';
+import { TempoCursorOverlay } from './TempoCursorOverlay';
 
 interface PlaybackSnapshot {
     playbackSpeed: number;
@@ -28,6 +30,11 @@ interface PositionSample {
     currentTick: number;
     currentTimeMs: number;
     endTick: number;
+}
+
+interface PerformBuildResult {
+    expectedItems: PerformExpectedItem<alphaTab.model.Beat>[];
+    tempoQueue: PracticeQueueItem<alphaTab.model.Beat>[];
 }
 
 const positionBufferSize = 80;
@@ -158,20 +165,24 @@ export class PerformPanel implements Mountable {
     readonly root: HTMLElement;
     private session = new PerformSession<alphaTab.model.Beat>();
     private overlay: PracticeOverlay;
+    private tempoOverlay: TempoCursorOverlay;
     private subscriptions: (() => void)[] = [];
     private lastMidiState: MidiInputState;
     private settings: PerformSettings = { ...defaultPerformSettings };
     private showHints = true;
+    private showTempoCursor = true;
     private loopEnabled = false;
     private snapshot: PlaybackSnapshot | null = null;
     private restored = true;
     private positionSamples: PositionSample[] = [];
     private previousTick = 0;
+    private tempoQueue: PracticeQueueItem<alphaTab.model.Beat>[] = [];
 
     private indicatorEl: HTMLElement;
     private inputSelect: HTMLSelectElement;
     private ignoreOctaveInput: HTMLInputElement;
     private showHintsInput: HTMLInputElement;
+    private showTempoCursorInput: HTMLInputElement;
     private loopInput: HTMLInputElement;
     private startSpeedInput: HTMLInputElement;
     private targetSpeedInput: HTMLInputElement;
@@ -204,6 +215,7 @@ export class PerformPanel implements Mountable {
                         </div>
                         <label class="at-perform-label"><input type="checkbox" data-perform-octave /> Ignore octave</label>
                         <label class="at-perform-label"><input type="checkbox" data-perform-hints /> Show hints</label>
+                        <label class="at-perform-label"><input type="checkbox" data-perform-tempo-cursor /> Tempo cursor</label>
                         <label class="at-perform-label"><input type="checkbox" data-perform-loop /> Loop range</label>
                         <label class="at-perform-label">Start <input class="at-perform-speed" type="number" min="0.1" max="1" step="0.1" data-perform-start-speed /></label>
                         <label class="at-perform-label">Target <input class="at-perform-speed" type="number" min="0.1" max="1" step="0.1" data-perform-target-speed /></label>
@@ -228,10 +240,12 @@ export class PerformPanel implements Mountable {
         `);
 
         this.overlay = new PracticeOverlay(api, overlayHost);
+        this.tempoOverlay = new TempoCursorOverlay(api, overlayHost);
         this.indicatorEl = this.root.querySelector('[data-perform-indicator]')!;
         this.inputSelect = this.root.querySelector('[data-perform-input]')!;
         this.ignoreOctaveInput = this.root.querySelector('[data-perform-octave]')!;
         this.showHintsInput = this.root.querySelector('[data-perform-hints]')!;
+        this.showTempoCursorInput = this.root.querySelector('[data-perform-tempo-cursor]')!;
         this.loopInput = this.root.querySelector('[data-perform-loop]')!;
         this.startSpeedInput = this.root.querySelector('[data-perform-start-speed]')!;
         this.targetSpeedInput = this.root.querySelector('[data-perform-target-speed]')!;
@@ -287,6 +301,7 @@ export class PerformPanel implements Mountable {
         }
         this.subscriptions = [];
         this.overlay.dispose();
+        this.tempoOverlay.dispose();
         this.root.remove();
     }
 
@@ -314,6 +329,15 @@ export class PerformPanel implements Mountable {
             this.showHints = this.showHintsInput.checked;
             this.saveCustomSetting('performShowHints', this.showHints);
             this.refresh();
+        });
+        this.showTempoCursorInput.addEventListener('change', () => {
+            this.showTempoCursor = this.showTempoCursorInput.checked;
+            this.saveCustomSetting('performTempoCursor', this.showTempoCursor);
+            if (this.showTempoCursor) {
+                this.updateTempoCursor(this.api.tickPosition);
+            } else {
+                this.tempoOverlay.clear();
+            }
         });
         this.loopInput.addEventListener('change', () => {
             this.loopEnabled = this.loopInput.checked;
@@ -354,13 +378,16 @@ export class PerformPanel implements Mountable {
     private start(): void {
         this.stop('Perform stopped.');
         const selectedRange = this.copyPlaybackRange(this.api.playbackRange);
-        const expectedItems = this.buildExpectedItems(selectedRange);
+        const buildResult = this.buildPerformItems(selectedRange);
+        const expectedItems = buildResult.expectedItems;
         if (expectedItems.length === 0) {
             this.feedbackEl.textContent = 'No playable notes in range.';
             this.feedbackEl.className = 'at-perform-feedback wrong';
+            this.tempoOverlay.clear();
             this.refresh();
             return;
         }
+        this.tempoQueue = buildResult.tempoQueue;
 
         this.snapshot = {
             playbackSpeed: this.api.playbackSpeed,
@@ -392,6 +419,7 @@ export class PerformPanel implements Mountable {
         this.api.play();
         this.feedbackEl.textContent = 'Perform running.';
         this.feedbackEl.className = 'at-perform-feedback';
+        this.updateTempoCursor(this.previousTick);
         this.refresh();
     }
 
@@ -400,6 +428,8 @@ export class PerformPanel implements Mountable {
         this.session.stop();
         this.restorePlayback();
         this.overlay.clear();
+        this.tempoOverlay.clear();
+        this.tempoQueue = [];
         this.keyboardPanel?.clearHints();
         this.keyboardPanel?.stopAllInputNotes();
         if (wasRunning) {
@@ -456,6 +486,7 @@ export class PerformPanel implements Mountable {
 
         const result = this.session.advancePosition(args.currentTick, timestampMs);
         this.applyInputResult(result);
+        this.updateTempoCursor(args.currentTick);
         if (this.loopEnabled && this.previousTick > args.currentTick) {
             this.completePass(timestampMs);
         }
@@ -550,11 +581,12 @@ export class PerformPanel implements Mountable {
             this.keyboardPanel?.clearHints();
             if (!state.running) {
                 this.overlay.clear();
+                this.tempoOverlay.clear();
             }
         }
     }
 
-    private buildExpectedItems(range: alphaTab.synth.PlaybackRange | null): PerformExpectedItem<alphaTab.model.Beat>[] {
+    private buildPerformItems(range: alphaTab.synth.PlaybackRange | null): PerformBuildResult {
         const queue = filterPracticeQueueByRange(
             buildPracticeQueue(getPlayableBeatsFromTracks(this.api.tracks), this.api.tickCache),
             range
@@ -571,7 +603,19 @@ export class PerformPanel implements Mountable {
                 });
             }
         }
-        return items;
+        return {
+            expectedItems: items,
+            tempoQueue: queue
+        };
+    }
+
+    private updateTempoCursor(currentTick: number): void {
+        if (!this.session.getState().running || !this.showTempoCursor) {
+            this.tempoOverlay.clear();
+            return;
+        }
+
+        this.tempoOverlay.showItem(selectTempoCursorItem(this.tempoQueue, currentTick));
     }
 
     private projectExpectedWallTimes(): void {
@@ -608,10 +652,13 @@ export class PerformPanel implements Mountable {
         const expectedNotes = Array.from(
             new Set(this.session.getExpectedItems().filter(expected => expected.beat === item.beat).map(expected => expected.pitch))
         ).sort((a, b) => a - b);
+        const endTick = item.startTick + (item.beat.playbackDuration || 1);
         return {
             beat: item.beat,
             expectedNotes,
-            startTick: item.startTick
+            expectedNoteDetails: expectedNotes.map(note => ({ note, endTick })),
+            startTick: item.startTick,
+            endTick
         };
     }
 
@@ -664,6 +711,8 @@ export class PerformPanel implements Mountable {
             this.settings.startSpeed = Number(data?.custom?.performStartSpeed ?? defaultPerformSettings.startSpeed);
             this.settings.targetSpeed = Number(data?.custom?.performTargetSpeed ?? defaultPerformSettings.targetSpeed);
             this.showHints = data?.custom?.performShowHints !== undefined ? !!data.custom.performShowHints : true;
+            this.showTempoCursor =
+                data?.custom?.performTempoCursor !== undefined ? !!data.custom.performTempoCursor : true;
             this.loopEnabled = data?.custom?.performLoopEnabled !== undefined ? !!data.custom.performLoopEnabled : false;
         } catch (e) {
             console.error('Failed to load perform settings:', e);
@@ -673,6 +722,7 @@ export class PerformPanel implements Mountable {
     private applySettingsToInputs(): void {
         this.ignoreOctaveInput.checked = this.settings.ignoreOctave;
         this.showHintsInput.checked = this.showHints;
+        this.showTempoCursorInput.checked = this.showTempoCursor;
         this.loopInput.checked = this.loopEnabled;
         this.startSpeedInput.value = this.settings.startSpeed.toFixed(1);
         this.targetSpeedInput.value = this.settings.targetSpeed.toFixed(1);

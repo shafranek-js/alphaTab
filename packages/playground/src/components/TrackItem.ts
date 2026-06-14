@@ -255,45 +255,43 @@ export class TrackItem implements Mountable {
 
         this.instrument.value = String(track.playbackInfo.program);
 
-        let savedTranspositionPitch = 0;
+        let savedTrackSettings: any = null;
         if (this.api.score) {
             const key = `${this.api.score.title}::${this.api.score.artist}`;
             const savedSettingsStr = typeof localStorage !== 'undefined' ? localStorage.getItem('at-playground-track-settings') : null;
             if (savedSettingsStr) {
                 try {
                     const allSettings = JSON.parse(savedSettingsStr);
-                    const savedTrack = allSettings[key]?.tracks?.find((t: any) => t.index === track.index);
-                    if (savedTrack && savedTrack.transpositionPitch !== undefined) {
-                        savedTranspositionPitch = savedTrack.transpositionPitch;
-                    }
+                    savedTrackSettings = allSettings[key]?.tracks?.find((t: any) => t.index === track.index) ?? null;
                 } catch {}
             }
         }
-        this.transposeAudio.value = String(savedTranspositionPitch);
-        this.api.changeTrackTranspositionPitch([this.track], savedTranspositionPitch);
+
+        let savedTransposeLocked = true;
+        if (savedTrackSettings?.transposeLocked !== undefined) {
+            savedTransposeLocked = savedTrackSettings.transposeLocked;
+        }
+
+        let savedTranspositionPitch = 0;
+        if (savedTrackSettings?.transpositionPitch !== undefined) {
+            savedTranspositionPitch = savedTrackSettings.transpositionPitch;
+        }
 
         let savedTransposeFull = 0;
         if (this.api.score) {
             const pitches = this.api.settings.notation.transpositionPitches;
             savedTransposeFull = pitches[track.index] ?? 0;
         }
+
+        if (savedTransposeLocked) {
+            savedTranspositionPitch = savedTransposeFull;
+        }
+
+        this.transposeAudio.value = String(savedTranspositionPitch);
         this.transposeFull.value = String(savedTransposeFull);
+        this.api.changeTrackTranspositionPitch([this.track], savedTranspositionPitch);
         this.updateTransposeLabels();
 
-        let savedTransposeLocked = true;
-        if (this.api.score) {
-            const key = `${this.api.score.title}::${this.api.score.artist}`;
-            const savedSettingsStr = typeof localStorage !== 'undefined' ? localStorage.getItem('at-playground-track-settings') : null;
-            if (savedSettingsStr) {
-                try {
-                    const allSettings = JSON.parse(savedSettingsStr);
-                    const savedTrack = allSettings[key]?.tracks?.find((t: any) => t.index === track.index);
-                    if (savedTrack && savedTrack.transposeLocked !== undefined) {
-                        savedTransposeLocked = savedTrack.transposeLocked;
-                    }
-                } catch {}
-            }
-        }
         this.transposeLockBtn.classList.toggle('active', savedTransposeLocked);
         this.transposeLockBtn.classList.toggle('success', savedTransposeLocked);
         this.renderTransposeLockIcon(savedTransposeLocked);
@@ -427,14 +425,16 @@ export class TrackItem implements Mountable {
             this.transposeLockBtn.classList.toggle('active', active);
             this.transposeLockBtn.classList.toggle('success', active);
             this.renderTransposeLockIcon(active);
+            if (active) {
+                this.applyLinkedTranspose(this.transposeFull.valueAsNumber, true);
+            }
             saveTrackSettings(this.api);
         });
         this.transposeAudio.addEventListener('input', e => {
             e.stopPropagation();
             const val = this.transposeAudio.valueAsNumber;
             if (this.transposeLockBtn.classList.contains('active')) {
-                this.transposeFull.value = String(val);
-                this.applyFullTranspose(val, true);
+                this.applyLinkedTranspose(val, true);
             } else {
                 this.api.changeTrackTranspositionPitch([this.track], val);
                 this.updateTransposeLabels();
@@ -444,10 +444,10 @@ export class TrackItem implements Mountable {
         this.transposeFull.addEventListener('input', e => {
             e.stopPropagation();
             const val = this.transposeFull.valueAsNumber;
-            this.applyFullTranspose(val, true);
             if (this.transposeLockBtn.classList.contains('active')) {
-                this.transposeAudio.value = String(val);
-                this.updateTransposeLabels();
+                this.applyLinkedTranspose(val, true);
+            } else {
+                this.applyFullTranspose(val, true);
             }
             saveTrackSettings(this.api);
         });
@@ -592,6 +592,13 @@ export class TrackItem implements Mountable {
             this.loadMidiForScoreDynamic();
         }
         this.updateTransposeLabels();
+    }
+
+    private applyLinkedTranspose(semitones: number, reloadMidi: boolean): void {
+        this.transposeFull.value = String(semitones);
+        this.transposeAudio.value = String(semitones);
+        this.api.changeTrackTranspositionPitch([this.track], semitones);
+        this.applyFullTranspose(semitones, reloadMidi);
     }
 
     private updateTransposeLabels(): void {
