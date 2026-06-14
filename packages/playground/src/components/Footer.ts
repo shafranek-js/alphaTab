@@ -1,7 +1,9 @@
 import * as alphaTab from '@coderline/alphatab';
 import { css, html, injectStyles, type Mountable, mount, parseHtml } from '../util/Dom';
 import { FontAwesomeIcons, fontAwesomeIcon } from '../util/Icons';
+import { MidiInputService, type MidiNoteInput } from '../input/MidiInputService';
 import { PianoKeyboard } from './PianoKeyboard';
+import { PerformPanel } from './practice/PerformPanel';
 import { PracticePanel } from './practice/PracticePanel';
 import { TimeSlider } from './TimeSlider';
 import type { TrackList } from './TrackList';
@@ -235,11 +237,14 @@ export class Footer implements Mountable {
     readonly timeSlider: TimeSlider;
     readonly transport: TransportBar;
     readonly practicePanel: PracticePanel | null;
+    readonly performPanel: PerformPanel | null;
     readonly keyboardPanel: PianoKeyboard | null;
     private mediaSyncPanel: HTMLElement;
     private mediaMode: 'synth' | 'audio' | 'youtube' = 'synth';
     private zoom = 1;
     private isKeyboardVisible = true;
+    private midiService = new MidiInputService();
+    private subscriptions: (() => void)[] = [];
 
     constructor(
         private api: alphaTab.AlphaTabApi,
@@ -288,6 +293,7 @@ export class Footer implements Mountable {
                     </div>
                 </div>
                 <div class="cmp-practice-panel"></div>
+                <div class="cmp-perform-panel"></div>
                 <div class="cmp-keyboard-panel"></div>
                 <div class="cmp-waveform"></div>
                 <div class="cmp-time-slider"></div>
@@ -301,11 +307,18 @@ export class Footer implements Mountable {
             this.practicePanel = mount(
                 this.root,
                 '.cmp-practice-panel',
-                new PracticePanel(api, options.practiceOverlayHost, this.keyboardPanel)
+                new PracticePanel(api, this.midiService, options.practiceOverlayHost, this.keyboardPanel)
+            );
+            this.performPanel = mount(
+                this.root,
+                '.cmp-perform-panel',
+                new PerformPanel(api, this.midiService, options.practiceOverlayHost, this.keyboardPanel)
             );
         } else {
             this.root.querySelector('.cmp-practice-panel')!.remove();
+            this.root.querySelector('.cmp-perform-panel')!.remove();
             this.practicePanel = null;
+            this.performPanel = null;
         }
         if (options.showWaveform ?? true) {
             this.waveform = mount(this.root, '.cmp-waveform', new Waveform(api));
@@ -346,23 +359,63 @@ export class Footer implements Mountable {
             })
         );
         this.setBottomPanelMode(options.bottomPanelMode ?? null);
+        this.subscriptions.push(this.midiService.onMidiNote(note => this.routeInputNote(note)));
+        this.subscriptions.push(this.midiService.onMidiNoteOff(note => this.routeInputNoteOff(note)));
+        if (this.keyboardPanel) {
+            this.subscriptions.push(this.keyboardPanel.onVirtualNote(note => this.routeInputNote(note)));
+            this.subscriptions.push(this.keyboardPanel.onVirtualNoteOff(note => this.routeInputNoteOff(note)));
+        }
     }
 
     setBottomPanelMode(mode: PlaygroundBottomPanelMode): void {
+        this.clearActiveInput();
         this.mediaSyncPanel.classList.toggle('open', mode === 'media-sync');
         this.keyboardPanel?.setOpen(this.isKeyboardVisible);
         this.practicePanel?.setOpen(mode === 'practice');
+        this.performPanel?.setOpen(mode === 'perform');
         this.transport.setBottomPanelMode(mode);
     }
 
     dispose(): void {
         document.removeEventListener('click', this.closeMediaMenu);
+        for (const unsubscribe of this.subscriptions) {
+            unsubscribe();
+        }
+        this.subscriptions = [];
+        this.midiService.dispose();
         this.waveform?.dispose();
         this.practicePanel?.dispose();
+        this.performPanel?.dispose();
         this.keyboardPanel?.dispose();
         this.timeSlider.dispose();
         this.transport.dispose();
         this.root.remove();
+    }
+
+    private routeInputNote(note: MidiNoteInput): void {
+        if (this.transport.activeBottomPanelMode === 'practice') {
+            this.practicePanel?.handleMidiNote(note);
+        } else if (this.transport.activeBottomPanelMode === 'perform') {
+            this.performPanel?.handleMidiNote(note);
+        } else {
+            this.keyboardPanel?.playInputNote(note.note, note.velocity);
+        }
+    }
+
+    private routeInputNoteOff(note: MidiNoteInput): void {
+        if (this.transport.activeBottomPanelMode === 'practice') {
+            this.practicePanel?.handleMidiNoteOff(note);
+        } else if (this.transport.activeBottomPanelMode === 'perform') {
+            this.performPanel?.handleMidiNoteOff(note);
+        } else {
+            this.keyboardPanel?.stopInputNote(note.note);
+        }
+    }
+
+    private clearActiveInput(): void {
+        this.practicePanel?.clearActiveInput();
+        this.performPanel?.clearActiveInput();
+        this.keyboardPanel?.stopAllInputNotes();
     }
 
     private setupMediaSyncToolbar(): void {

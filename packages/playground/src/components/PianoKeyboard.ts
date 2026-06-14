@@ -230,6 +230,7 @@ export interface VirtualKeyboardNoteInput {
     velocity: number;
     inputId: 'virtual-keyboard';
     inputName: 'Virtual Keyboard';
+    timestampMs: number;
 }
 
 export class PianoKeyboard implements Mountable {
@@ -536,7 +537,8 @@ export class PianoKeyboard implements Mountable {
             pitchClass: noteNumber % 12,
             velocity,
             inputId: 'virtual-keyboard',
-            inputName: 'Virtual Keyboard'
+            inputName: 'Virtual Keyboard',
+            timestampMs: performance.now()
         };
     }
 
@@ -629,14 +631,16 @@ export class PianoKeyboard implements Mountable {
         this.applyHintNotes();
     }
 
-    public playInputNote(midi: number, velocity = 127, channel = 0): void {
+    public playInputNote(midi: number, velocity = 127, channel?: number): void {
         const keyEl = this.root.querySelector(`[data-midi="${midi}"]`) as HTMLElement | null;
         if (keyEl) {
             keyEl.classList.add('is-pressed');
         }
-        const resolvedChannel = (channel !== undefined && channel !== 0) 
-            ? channel 
-            : (this.api.tracks?.[0]?.playbackInfo?.primaryChannel ?? 0);
+        const resolvedChannel = channel ?? this.api.tracks?.[0]?.playbackInfo?.primaryChannel ?? 0;
+        const track = this.resolveInputTrack(resolvedChannel);
+        if (track) {
+            this.api.player?.setChannelProgram(resolvedChannel, track.playbackInfo.program, track.isPercussion);
+        }
 
         let channels = this.activeChannels.get(midi);
         if (!channels) {
@@ -646,6 +650,16 @@ export class PianoKeyboard implements Mountable {
         channels.push(resolvedChannel);
 
         this.api.player?.playLiveNote(resolvedChannel, midi, velocity);
+    }
+
+    private resolveInputTrack(channel: number): alphaTab.model.Track | null {
+        return (
+            this.api.tracks?.find(
+                track => track.playbackInfo.primaryChannel === channel || track.playbackInfo.secondaryChannel === channel
+            ) ??
+            this.api.tracks?.[0] ??
+            null
+        );
     }
 
     public stopInputNote(midi: number): void {
@@ -663,6 +677,19 @@ export class PianoKeyboard implements Mountable {
             }
             this.activeChannels.delete(midi);
         }
+    }
+
+    public stopAllInputNotes(): void {
+        for (const [midi, channels] of this.activeChannels) {
+            for (const channel of channels) {
+                this.api.player?.stopLiveNote(channel, midi);
+            }
+            const keyEl = this.root.querySelector(`[data-midi="${midi}"]`) as HTMLElement | null;
+            if (keyEl) {
+                keyEl.classList.remove('is-pressed');
+            }
+        }
+        this.activeChannels.clear();
     }
 
     private applyHintNotes(): void {

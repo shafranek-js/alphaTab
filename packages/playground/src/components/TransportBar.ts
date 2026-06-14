@@ -7,7 +7,7 @@ import { findBestPianoTransposeIntervals } from './practice/PracticeController';
 import { IconButton } from './primitives/IconButton';
 import { LoadingProgress } from './primitives/LoadingProgress';
 
-export type PlaygroundBottomPanelMode = 'media-sync' | 'practice' | null;
+export type PlaygroundBottomPanelMode = 'media-sync' | 'practice' | 'perform' | null;
 
 injectStyles(
     'TransportBar',
@@ -263,6 +263,7 @@ export class TransportBar implements Mountable {
     private stop: IconButton;
     private mediaSync: IconButton;
     private practice: IconButton;
+    private perform: IconButton;
     private keyboard: IconButton;
     private tracks: IconButton;
     private settings: IconButton;
@@ -340,6 +341,7 @@ export class TransportBar implements Mountable {
                 <div class="at-transport-right">
                     <div class="cmp-media-sync"></div>
                     <div class="cmp-practice"></div>
+                    <div class="cmp-perform"></div>
                     <div class="cmp-keyboard"></div>
                     <div class="cmp-tracks"></div>
                     <div class="cmp-settings"></div>
@@ -418,6 +420,17 @@ export class TransportBar implements Mountable {
         );
         this.practice.onClick = () => {
             const next = this.bottomPanelMode === 'practice' ? null : 'practice';
+            this.setBottomPanelMode(next);
+            this.options.onBottomPanelModeChange?.(next);
+        };
+
+        this.perform = mount(
+            this.root,
+            '.cmp-perform',
+            new IconButton({ icon: Icons.TrackPiano, label: 'Perform', tooltip: 'Perform' })
+        );
+        this.perform.onClick = () => {
+            const next = this.bottomPanelMode === 'perform' ? null : 'perform';
             this.setBottomPanelMode(next);
             this.options.onBottomPanelModeChange?.(next);
         };
@@ -554,10 +567,10 @@ export class TransportBar implements Mountable {
         this.subscriptions.push(
             api.playerReady.on(() => {
                 this.isPlayerReady = true;
-                this.updateTransportControlsEnabledState();
                 this.stop.setEnabled(true);
                 this.transposeDownBtn.removeAttribute('disabled');
                 this.transposeUpBtn.removeAttribute('disabled');
+                this.updateTransportControlsEnabledState();
             })
         );
         this.subscriptions.push(
@@ -609,13 +622,20 @@ export class TransportBar implements Mountable {
         this.updateTransportControlsEnabledState();
     }
 
+    get activeBottomPanelMode(): PlaygroundBottomPanelMode {
+        return this.bottomPanelMode;
+    }
+
     private updateTransportControlsEnabledState(): void {
-        const isPractice = this.bottomPanelMode === 'practice';
-        this.playPause.setEnabled(this.isPlayerReady && !isPractice);
+        const isPracticeMode = this.bottomPanelMode === 'practice';
+        const isPerformMode = this.bottomPanelMode === 'perform';
+        const modeOwnsPlayback = isPracticeMode || isPerformMode;
+        this.playPause.setEnabled(this.isPlayerReady && !modeOwnsPlayback);
+        this.stop.setEnabled(this.isPlayerReady && !isPerformMode);
         if (this.looping) {
-            this.looping.setEnabled(!isPractice);
-            this.looping.setTooltip(isPractice ? 'Looping is disabled in Practice' : 'Looping');
-            this.looping.root.classList.toggle('active', this.api.isLooping && !isPractice);
+            this.looping.setEnabled(!modeOwnsPlayback);
+            this.looping.setTooltip(modeOwnsPlayback ? 'Looping is disabled in this mode' : 'Looping');
+            this.looping.root.classList.toggle('active', this.api.isLooping && !modeOwnsPlayback);
         }
     }
 
@@ -624,6 +644,7 @@ export class TransportBar implements Mountable {
         this.setActiveButton(this.settings, this.sidePanelMode === 'settings');
         this.setActiveButton(this.mediaSync, this.bottomPanelMode === 'media-sync');
         this.setActiveButton(this.practice, this.bottomPanelMode === 'practice');
+        this.setActiveButton(this.perform, this.bottomPanelMode === 'perform');
         this.setActiveButton(this.keyboard, this.isKeyboardVisible);
     }
 
@@ -668,8 +689,8 @@ export class TransportBar implements Mountable {
         }
 
         if (this.looping) {
-            const isPractice = this.bottomPanelMode === 'practice';
-            this.looping.root.classList.toggle('active', loopVal && !isPractice);
+            const modeOwnsPlayback = this.bottomPanelMode === 'practice' || this.bottomPanelMode === 'perform';
+            this.looping.root.classList.toggle('active', loopVal && !modeOwnsPlayback);
         }
     }
 

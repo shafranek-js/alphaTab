@@ -7,6 +7,7 @@ import {
     type ControlChangeEvent,
     type MidiEvent,
     MidiEventType,
+    NoteOnEvent,
     TempoChangeEvent
 } from '@coderline/alphatab/midi/MidiEvent';
 import { MidiFile } from '@coderline/alphatab/midi/MidiFile';
@@ -16,6 +17,7 @@ import { Settings } from '@coderline/alphatab/Settings';
 import { AlphaSynth } from '@coderline/alphatab/synth/AlphaSynth';
 import { AudioExportOptions } from '@coderline/alphatab/synth/IAudioExporter';
 import { SynthConstants } from '@coderline/alphatab/synth/SynthConstants';
+import { SynthEvent } from '@coderline/alphatab/synth/synthesis/SynthEvent';
 import { TinySoundFont } from '@coderline/alphatab/synth/synthesis/TinySoundFont';
 import { VorbisFile } from '@coderline/alphatab/synth/vorbis/VorbisFile';
 import { TestOutput } from 'test/audio/TestOutput';
@@ -502,5 +504,68 @@ describe('AlphaSynthTests', () => {
 
         expect(tsf.activeVoiceCount).toBe(0);
     });
+
+    it('silent-score-playback-keeps-live-notes-audible', async () => {
+        const synth = await createReadySynth();
+        const output = synth.output as TestOutput;
+        const tsf = (synth as any).synthesizer as TinySoundFont;
+
+        synth.silentScorePlayback = true;
+        tsf.dispatchEvent(new SynthEvent(0, new NoteOnEvent(0, 0, 0, 60, 127)));
+        renderBuffers(output, 4);
+        const scoreOnlyEnergy = sampleEnergy(output);
+        const scoreOnlyVoices = tsf.activeVoiceCount;
+
+        output.samples = [];
+        synth.setChannelMute(0, true);
+        synth.playLiveNote(0, 60, 100);
+        renderBuffers(output, 4);
+        const liveEnergy = sampleEnergy(output);
+
+        expect(scoreOnlyEnergy).toBe(0);
+        expect(scoreOnlyVoices).toBe(0);
+        expect(liveEnergy).toBeGreaterThan(0);
+    });
+
+    it('regular-channel-mute-still-mutes-live-notes', async () => {
+        const synth = await createReadySynth();
+        const output = synth.output as TestOutput;
+
+        synth.setChannelMute(0, true);
+        synth.playLiveNote(0, 60, 100);
+        output.next();
+
+        expect(sampleEnergy(output)).toBe(0);
+    });
 });
+
+async function createReadySynth(): Promise<AlphaSynth> {
+    const data = await TestPlatform.loadFile('test-data/audio/default.sf2');
+    const score = ScoreLoader.loadAlphaTex('\\tempo 120 \\instrument 25 . 0.4.4');
+    const midi = new MidiFile();
+    const gen = new MidiFileGenerator(score, null, new AlphaSynthMidiFileHandler(midi));
+    gen.generate();
+
+    const synth = new AlphaSynth(new TestOutput(), 500);
+    synth.loadSoundFont(data, false);
+    synth.loadMidiFile(midi);
+    synth.timePosition = 100;
+    return synth;
+}
+
+function renderBuffers(output: TestOutput, count: number): void {
+    for (let i = 0; i < count; i++) {
+        output.next();
+    }
+}
+
+function sampleEnergy(output: TestOutput): number {
+    let energy = 0;
+    for (const samples of output.samples) {
+        for (const sample of samples) {
+            energy += Math.abs(sample);
+        }
+    }
+    return energy;
+}
 

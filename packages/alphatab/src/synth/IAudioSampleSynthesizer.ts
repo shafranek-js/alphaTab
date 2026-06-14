@@ -13,6 +13,12 @@ export interface IAudioSampleSynthesizer {
     masterVolume: number;
 
     /**
+     * Silences score-generated voices while keeping live input voices audible.
+     * This is intended for interactive performance/training playback and does not replace channel mute.
+     */
+    silentScorePlayback: boolean;
+
+    /**
      * The volume of metronome ticks.
      */
     metronomeVolume: number;
@@ -107,6 +113,14 @@ export interface IAudioSampleSynthesizer {
      * @param semitones The number of semitones to apply as pitch offset.
      */
     setChannelTranspositionPitch(channel: number, semitones: number): void;
+
+    /**
+     * Sets the instrument program of a given channel.
+     * @param channel The channel number.
+     * @param program The General MIDI program.
+     * @param percussion Whether percussion bank lookup should be used.
+     */
+    channelSetProgram(channel: number, program: number, percussion: boolean): void;
 
     /**
      * Sets the mute state of a channel.

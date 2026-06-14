@@ -38,6 +38,7 @@ export class AlphaSynthWrapper implements IAlphaSynth {
     private _countInVolume: number = 0;
     private _playbackSpeed: number = 1;
     private _isLooping: boolean = false;
+    private _silentScorePlayback: boolean = false;
     private _midiEventsPlayedFilter: MidiEventType[] = [];
 
     private _instance?: IAlphaSynth;
@@ -135,6 +136,7 @@ export class AlphaSynthWrapper implements IAlphaSynth {
                 value.countInVolume = this._countInVolume;
                 value.playbackSpeed = this._playbackSpeed;
                 value.isLooping = this._isLooping;
+                value.silentScorePlayback = this._silentScorePlayback;
                 value.midiEventsPlayedFilter = this._midiEventsPlayedFilter;
                 (this.ready as EventEmitter).trigger();
             } else {
@@ -145,6 +147,7 @@ export class AlphaSynthWrapper implements IAlphaSynth {
                         value.countInVolume = this._countInVolume;
                         value.playbackSpeed = this._playbackSpeed;
                         value.isLooping = this._isLooping;
+                        value.silentScorePlayback = this._silentScorePlayback;
                         value.midiEventsPlayedFilter = this._midiEventsPlayedFilter;
                     })
                 );
@@ -277,6 +280,17 @@ export class AlphaSynthWrapper implements IAlphaSynth {
         }
     }
 
+    public get silentScorePlayback(): boolean {
+        return this._silentScorePlayback;
+    }
+
+    public set silentScorePlayback(value: boolean) {
+        this._silentScorePlayback = value;
+        if (this._instance) {
+            this._instance.silentScorePlayback = value;
+        }
+    }
+
     public get midiEventsPlayedFilter(): MidiEventType[] {
         return this._midiEventsPlayedFilter;
     }
@@ -374,6 +388,12 @@ export class AlphaSynthWrapper implements IAlphaSynth {
     public setChannelTranspositionPitch(channel: number, semitones: number): void {
         if (this._instance) {
             this._instance!.setChannelTranspositionPitch(channel, semitones);
+        }
+    }
+
+    public setChannelProgram(channel: number, program: number, percussion: boolean): void {
+        if (this._instance) {
+            this._instance!.setChannelProgram(channel, program, percussion);
         }
     }
 

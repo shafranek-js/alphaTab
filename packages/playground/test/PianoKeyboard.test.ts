@@ -66,7 +66,8 @@ describe('PianoKeyboard live note queueing', () => {
 
         const mockPlayer = {
             playLiveNote: vi.fn(),
-            stopLiveNote: vi.fn()
+            stopLiveNote: vi.fn(),
+            setChannelProgram: vi.fn()
         };
         const mockApi = {
             scoreLoaded: { on: vi.fn(() => vi.fn()) },
@@ -97,6 +98,11 @@ describe('PianoKeyboard live note queueing', () => {
         expect(mockPlayer.playLiveNote).toHaveBeenCalledTimes(2);
         expect(mockPlayer.stopLiveNote).not.toHaveBeenCalled();
 
+        // Channel 0 is a valid explicit live input channel and must not be replaced by the first score track channel.
+        keyboard.playInputNote(61, 100, 0);
+        expect(mockPlayer.playLiveNote).toHaveBeenLastCalledWith(0, 61, 100);
+        expect(mockPlayer.playLiveNote).toHaveBeenCalledTimes(3);
+
         // 3. Stop note 60 (first release)
         keyboard.stopInputNote(60);
         // Should trigger stopLiveNote for the first channel (1)
@@ -116,6 +122,7 @@ describe('PianoKeyboard live note queueing', () => {
         const mockPlayer = {
             playLiveNote: vi.fn(),
             stopLiveNote: vi.fn(),
+            setChannelProgram: vi.fn(),
             playOneTimeMidiFile: vi.fn()
         };
         const mockApi = {
@@ -128,16 +135,18 @@ describe('PianoKeyboard live note queueing', () => {
         };
 
         const keyboard = new PianoKeyboard(mockApi as any);
-        const noteOns: number[] = [];
-        const noteOffs: number[] = [];
-        keyboard.onVirtualNote(note => noteOns.push(note.note));
-        keyboard.onVirtualNoteOff(note => noteOffs.push(note.note));
+        const noteOns: Array<{ note: number; timestampMs: number }> = [];
+        const noteOffs: Array<{ note: number; timestampMs: number }> = [];
+        keyboard.onVirtualNote(note => noteOns.push({ note: note.note, timestampMs: note.timestampMs }));
+        keyboard.onVirtualNoteOff(note => noteOffs.push({ note: note.note, timestampMs: note.timestampMs }));
 
         (keyboard as any).playVirtualNote(60);
         (keyboard as any).stopVirtualNote(60);
 
-        expect(noteOns).toEqual([60]);
-        expect(noteOffs).toEqual([60]);
+        expect(noteOns.map(note => note.note)).toEqual([60]);
+        expect(noteOffs.map(note => note.note)).toEqual([60]);
+        expect(Number.isFinite(noteOns[0].timestampMs)).toBe(true);
+        expect(Number.isFinite(noteOffs[0].timestampMs)).toBe(true);
         expect(mockPlayer.playOneTimeMidiFile).not.toHaveBeenCalled();
     });
 });

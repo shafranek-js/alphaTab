@@ -71,6 +71,7 @@ export type IAlphaSynthWorkerMessage =
     | { cmd: 'alphaSynth.setPlaybackRange'; value: PlaybackRange | null }
     | { cmd: 'alphaSynth.setIsLooping'; value: boolean }
     | { cmd: 'alphaSynth.setCountInVolume'; value: number }
+    | { cmd: 'alphaSynth.setSilentScorePlayback'; value: boolean }
     | { cmd: 'alphaSynth.setMidiEventsPlayedFilter'; value: MidiEventType[] }
     | { cmd: 'alphaSynth.play' }
     | { cmd: 'alphaSynth.pause' }
@@ -84,6 +85,7 @@ export type IAlphaSynthWorkerMessage =
     | { cmd: 'alphaSynth.loadMidi'; midi: unknown }
     | { cmd: 'alphaSynth.setChannelMute'; channel: number; mute: boolean }
     | { cmd: 'alphaSynth.setChannelTranspositionPitch'; channel: number; semitones: number }
+    | { cmd: 'alphaSynth.setChannelProgram'; channel: number; program: number; percussion: boolean }
     | { cmd: 'alphaSynth.setChannelSolo'; channel: number; solo: boolean }
     | { cmd: 'alphaSynth.setChannelVolume'; channel: number; volume: number }
     | { cmd: 'alphaSynth.resetChannelStates' }

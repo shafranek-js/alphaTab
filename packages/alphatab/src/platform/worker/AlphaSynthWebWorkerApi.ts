@@ -43,6 +43,7 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
     private _countInVolume: number = 0;
     private _playbackSpeed: number = 0;
     private _isLooping: boolean = false;
+    private _silentScorePlayback: boolean = false;
     private _playbackRange: PlaybackRange | null = null;
     private _midiEventsPlayedFilter: MidiEventType[] = [];
     private _loadedMidiInfo?: PositionChangedEventArgs;
@@ -115,6 +116,18 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
         this._synth.postMessage({
             cmd: 'alphaSynth.setCountInVolume',
             value: value
+        });
+    }
+
+    public get silentScorePlayback(): boolean {
+        return this._silentScorePlayback;
+    }
+
+    public set silentScorePlayback(value: boolean) {
+        this._silentScorePlayback = value;
+        this._synth.postMessage({
+            cmd: 'alphaSynth.setSilentScorePlayback',
+            value
         });
     }
 
@@ -349,6 +362,15 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
             cmd: 'alphaSynth.setChannelTranspositionPitch',
             channel: channel,
             semitones: semitones
+        });
+    }
+
+    public setChannelProgram(channel: number, program: number, percussion: boolean): void {
+        this._synth.postMessage({
+            cmd: 'alphaSynth.setChannelProgram',
+            channel: channel,
+            program: program,
+            percussion: percussion
         });
     }
 

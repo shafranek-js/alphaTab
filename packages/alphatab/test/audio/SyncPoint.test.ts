@@ -449,6 +449,7 @@ class TestExternalMediaHandler implements IExternalMediaHandler {
  */
 class EmptyAudioSynthesizer implements IAudioSampleSynthesizer {
     public masterVolume: number = 0;
+    public silentScorePlayback: boolean = false;
     public metronomeVolume: number = 0;
     public outSampleRate: number = 44100;
     public currentTempo: number = 120;
@@ -472,6 +473,7 @@ class EmptyAudioSynthesizer implements IAudioSampleSynthesizer {
     }
     public applyTranspositionPitches(_transpositionPitches: Map<number, number>): void {}
     public setChannelTranspositionPitch(_channel: number, _semitones: number): void {}
+    public channelSetProgram(_channel: number, _program: number, _percussion: boolean): void {}
     public channelSetMute(_channel: number, _mute: boolean): void {}
     public channelSetSolo(_channel: number, _solo: boolean): void {}
     public resetChannelStates(): void {}

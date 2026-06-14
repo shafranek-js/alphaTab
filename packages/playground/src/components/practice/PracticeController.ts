@@ -56,6 +56,74 @@ export type PracticeInputResult<TBeat extends PracticeBeatSource = PracticeBeatS
       }
     | { type: 'complete'; inputNote: number; item: PracticeQueueItem<TBeat>; state: PracticeSessionState<TBeat> };
 
+export interface PerformSettings {
+    startSpeed: number;
+    targetSpeed: number;
+    speedIncrement: number;
+    cleanPassesRequired: number;
+    timingWindowMs: number;
+    ignoreOctave: boolean;
+}
+
+export interface PerformExpectedItem<TBeat extends PracticeBeatSource = PracticeBeatSource> {
+    beat: TBeat;
+    pitch: number;
+    startTick: number;
+    expectedWallTimestampMs?: number;
+    matched: boolean;
+    timingMs?: number;
+}
+
+export interface PerformPassStats {
+    passIndex: number;
+    correctCount: number;
+    wrongCount: number;
+    missedCount: number;
+    earlyCount: number;
+    lateCount: number;
+    expectedCount: number;
+    clean: boolean;
+}
+
+export interface PerformState<TBeat extends PracticeBeatSource = PracticeBeatSource> {
+    running: boolean;
+    scoringReady: boolean;
+    currentPass: number;
+    cleanPassStreak: number;
+    speed: number;
+    targetSpeed: number;
+    lastPass: PerformPassStats | null;
+    currentItem: PerformExpectedItem<TBeat> | null;
+    expectedCount: number;
+    correctCount: number;
+    wrongCount: number;
+    missedCount: number;
+    earlyCount: number;
+    lateCount: number;
+}
+
+export type PerformInputResult<TBeat extends PracticeBeatSource = PracticeBeatSource> =
+    | { type: 'ignored'; state: PerformState<TBeat> }
+    | { type: 'matched'; item: PerformExpectedItem<TBeat>; timingMs: number; state: PerformState<TBeat> }
+    | { type: 'wrong'; inputNote: number; state: PerformState<TBeat> }
+    | { type: 'missed'; items: PerformExpectedItem<TBeat>[]; state: PerformState<TBeat> };
+
+export interface PerformPassResult<TBeat extends PracticeBeatSource = PracticeBeatSource> {
+    stats: PerformPassStats;
+    missedItems: PerformExpectedItem<TBeat>[];
+    speedChanged: boolean;
+    state: PerformState<TBeat>;
+}
+
+export const defaultPerformSettings: PerformSettings = {
+    startSpeed: 0.7,
+    targetSpeed: 1,
+    speedIncrement: 0.1,
+    cleanPassesRequired: 3,
+    timingWindowMs: 120,
+    ignoreOctave: false
+};
+
 export function buildPracticeQueue<TBeat extends PracticeBeatSource>(
     beats: Iterable<TBeat>,
     tickLookup?: PracticeTickLookup<TBeat> | null
@@ -306,8 +374,266 @@ export class PracticeSession<TBeat extends PracticeBeatSource = PracticeBeatSour
     }
 }
 
+export class PerformSession<TBeat extends PracticeBeatSource = PracticeBeatSource> {
+    private items: PerformExpectedItem<TBeat>[] = [];
+    private settings: PerformSettings = { ...defaultPerformSettings };
+    private running = false;
+    private currentPass = 1;
+    private cleanPassStreak = 0;
+    private speed = defaultPerformSettings.startSpeed;
+    private lastPass: PerformPassStats | null = null;
+    private correctCount = 0;
+    private wrongCount = 0;
+    private missedCount = 0;
+    private earlyCount = 0;
+    private lateCount = 0;
+    private lastCompletedBoundary = Number.NEGATIVE_INFINITY;
+
+    public configure(settings: Partial<PerformSettings>): void {
+        this.settings = { ...this.settings, ...settings };
+        this.speed = this.settings.startSpeed;
+    }
+
+    public start(items: PerformExpectedItem<TBeat>[]): PerformState<TBeat> {
+        this.items = items.map(item => ({ ...item, matched: false, timingMs: undefined }));
+        this.running = this.items.length > 0;
+        this.currentPass = 1;
+        this.cleanPassStreak = 0;
+        this.speed = this.settings.startSpeed;
+        this.lastPass = null;
+        this.resetPassCounts();
+        this.lastCompletedBoundary = Number.NEGATIVE_INFINITY;
+        return this.getState();
+    }
+
+    public stop(): PerformState<TBeat> {
+        this.running = false;
+        return this.getState();
+    }
+
+    public resetStats(): PerformState<TBeat> {
+        this.currentPass = 1;
+        this.cleanPassStreak = 0;
+        this.lastPass = null;
+        this.resetPassCounts();
+        for (const item of this.items) {
+            item.matched = false;
+            item.timingMs = undefined;
+        }
+        return this.getState();
+    }
+
+    public setExpectedWallTimestamps(timestamps: Map<number, number>): void {
+        for (const item of this.items) {
+            const wallTime = timestamps.get(item.startTick);
+            if (typeof wallTime === 'number' && Number.isFinite(wallTime)) {
+                item.expectedWallTimestampMs = wallTime;
+            }
+        }
+    }
+
+    public clearExpectedWallTimestamps(): void {
+        for (const item of this.items) {
+            item.expectedWallTimestampMs = undefined;
+        }
+    }
+
+    public advancePosition(_currentTick: number, wallTimestampMs: number): PerformInputResult<TBeat> {
+        if (!this.running || !this.isScoringReady()) {
+            return { type: 'ignored', state: this.getState() };
+        }
+
+        const missed = this.collectMissed(wallTimestampMs);
+        if (missed.length > 0) {
+            return { type: 'missed', items: missed, state: this.getState() };
+        }
+
+        return { type: 'ignored', state: this.getState() };
+    }
+
+    public handleNoteOn(inputNote: number, timestampMs: number): PerformInputResult<TBeat> {
+        if (!this.running || !this.isScoringReady()) {
+            return { type: 'ignored', state: this.getState() };
+        }
+
+        const normalizedInput = this.normalize(inputNote);
+        const candidates = this.items
+            .filter(
+                item =>
+                    !item.matched &&
+                    item.expectedWallTimestampMs !== undefined &&
+                    this.normalize(item.pitch) === normalizedInput &&
+                    Math.abs(timestampMs - item.expectedWallTimestampMs) <= this.settings.timingWindowMs
+            )
+            .sort((a, b) => this.compareMatchCandidate(a, b, timestampMs));
+
+        const match = candidates[0];
+        if (!match) {
+            if (this.hasActiveWindow(timestampMs)) {
+                this.wrongCount++;
+                this.cleanPassStreak = 0;
+                return { type: 'wrong', inputNote, state: this.getState() };
+            }
+            return { type: 'ignored', state: this.getState() };
+        }
+
+        const timingMs = timestampMs - match.expectedWallTimestampMs!;
+        match.matched = true;
+        match.timingMs = timingMs;
+        this.correctCount++;
+        if (timingMs < 0) {
+            this.earlyCount++;
+        } else if (timingMs > 0) {
+            this.lateCount++;
+        }
+
+        return { type: 'matched', item: match, timingMs, state: this.getState() };
+    }
+
+    public completePass(boundaryToken: number): PerformPassResult<TBeat> | null {
+        if (!this.running || boundaryToken === this.lastCompletedBoundary) {
+            return null;
+        }
+        this.lastCompletedBoundary = boundaryToken;
+
+        const missedItems = this.items.filter(item => !item.matched);
+        this.missedCount += missedItems.length;
+        const stats: PerformPassStats = {
+            passIndex: this.currentPass,
+            correctCount: this.correctCount,
+            wrongCount: this.wrongCount,
+            missedCount: this.missedCount,
+            earlyCount: this.earlyCount,
+            lateCount: this.lateCount,
+            expectedCount: this.items.length,
+            clean: this.wrongCount === 0 && this.missedCount === 0 && this.correctCount === this.items.length
+        };
+
+        this.lastPass = stats;
+        this.cleanPassStreak = stats.clean ? this.cleanPassStreak + 1 : 0;
+        let speedChanged = false;
+        if (this.cleanPassStreak >= this.settings.cleanPassesRequired) {
+            const nextSpeed = Math.min(
+                this.settings.targetSpeed,
+                roundToStep(this.speed * (1 + this.settings.speedIncrement), 0.1)
+            );
+            if (nextSpeed !== this.speed) {
+                this.speed = nextSpeed;
+                speedChanged = true;
+            }
+            this.cleanPassStreak = 0;
+        }
+
+        this.currentPass++;
+        this.resetPassItems();
+        this.resetPassCounts();
+
+        return { stats, missedItems, speedChanged, state: this.getState() };
+    }
+
+    public getState(): PerformState<TBeat> {
+        return {
+            running: this.running,
+            scoringReady: this.isScoringReady(),
+            currentPass: this.currentPass,
+            cleanPassStreak: this.cleanPassStreak,
+            speed: this.speed,
+            targetSpeed: this.settings.targetSpeed,
+            lastPass: this.lastPass,
+            currentItem: this.getCurrentItem(),
+            expectedCount: this.items.length,
+            correctCount: this.correctCount,
+            wrongCount: this.wrongCount,
+            missedCount: this.missedCount,
+            earlyCount: this.earlyCount,
+            lateCount: this.lateCount
+        };
+    }
+
+    public getExpectedItems(): readonly PerformExpectedItem<TBeat>[] {
+        return this.items;
+    }
+
+    private resetPassCounts(): void {
+        this.correctCount = 0;
+        this.wrongCount = 0;
+        this.missedCount = 0;
+        this.earlyCount = 0;
+        this.lateCount = 0;
+    }
+
+    private resetPassItems(): void {
+        for (const item of this.items) {
+            item.matched = false;
+            item.timingMs = undefined;
+        }
+    }
+
+    private collectMissed(wallTimestampMs: number): PerformExpectedItem<TBeat>[] {
+        const missed: PerformExpectedItem<TBeat>[] = [];
+        for (const item of this.items) {
+            if (
+                !item.matched &&
+                item.expectedWallTimestampMs !== undefined &&
+                wallTimestampMs > item.expectedWallTimestampMs + this.settings.timingWindowMs
+            ) {
+                item.matched = true;
+                missed.push(item);
+            }
+        }
+        this.missedCount += missed.length;
+        if (missed.length > 0) {
+            this.cleanPassStreak = 0;
+        }
+        return missed;
+    }
+
+    private hasActiveWindow(timestampMs: number): boolean {
+        return this.items.some(
+            item =>
+                !item.matched &&
+                item.expectedWallTimestampMs !== undefined &&
+                Math.abs(timestampMs - item.expectedWallTimestampMs) <= this.settings.timingWindowMs
+        );
+    }
+
+    private compareMatchCandidate(
+        a: PerformExpectedItem<TBeat>,
+        b: PerformExpectedItem<TBeat>,
+        timestampMs: number
+    ): number {
+        const aOverdue = timestampMs >= a.expectedWallTimestampMs! ? 0 : 1;
+        const bOverdue = timestampMs >= b.expectedWallTimestampMs! ? 0 : 1;
+        if (aOverdue !== bOverdue) {
+            return aOverdue - bOverdue;
+        }
+
+        const delta = Math.abs(timestampMs - a.expectedWallTimestampMs!) - Math.abs(timestampMs - b.expectedWallTimestampMs!);
+        if (delta !== 0) {
+            return delta;
+        }
+        return a.startTick - b.startTick;
+    }
+
+    private getCurrentItem(): PerformExpectedItem<TBeat> | null {
+        return this.items.find(item => !item.matched) ?? this.items[0] ?? null;
+    }
+
+    private isScoringReady(): boolean {
+        return this.items.length > 0 && this.items.every(item => item.expectedWallTimestampMs !== undefined);
+    }
+
+    private normalize(note: number): number {
+        return this.settings.ignoreOctave ? note % 12 : note;
+    }
+}
+
 function uniqueNotes(notes: number[]): number[] {
     return Array.from(new Set(notes)).sort((a, b) => a - b);
+}
+
+function roundToStep(value: number, step: number): number {
+    return Math.round(value / step) * step;
 }
 
 export const findBestPianoTransposeIntervals = (midiNumbers: number[]): number[] => {

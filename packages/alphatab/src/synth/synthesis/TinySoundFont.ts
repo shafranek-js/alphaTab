@@ -63,6 +63,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
     public currentTempo: number = 0;
     public timeSignatureNumerator: number = 0;
     public timeSignatureDenominator: number = 0;
+    public silentScorePlayback: boolean = false;
     private _metronomeChannel: number = SynthConstants.DefaultChannelCount - 1;
 
     public constructor(sampleRate: number) {
@@ -146,6 +147,10 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         }
     }
 
+    public channelSetProgram(channel: number, program: number, percussion: boolean): void {
+        this.channelSetPresetNumber(channel, program, percussion);
+    }
+
     public applyTranspositionPitches(transpositionPitches: Map<number, number>): void {
         // dynamically adjust actively playing voices to the new pitch they have.
         // we are not updating the used preset and regions though.
@@ -203,9 +208,13 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                 const channel: number = voice.playingChannel;
                 // channel is muted if it is either explicitly muted, or another channel is set to solo but not this one.
                 // exception. metronome is implicitly added in solo
-                const isChannelMuted: boolean =
-                    this._mutedChannels.has(channel) ||
-                    (anySolo && channel !== this._metronomeChannel && !this._soloChannels.has(channel));
+                const isChannelMuted: boolean = voice.isLive
+                    ? !this.silentScorePlayback &&
+                      (this._mutedChannels.has(channel) ||
+                          (anySolo && channel !== this._metronomeChannel && !this._soloChannels.has(channel)))
+                    : this._mutedChannels.has(channel) ||
+                      (anySolo && channel !== this._metronomeChannel && !this._soloChannels.has(channel)) ||
+                      (this.silentScorePlayback && channel !== this._metronomeChannel);
 
                 if (!buffer) {
                     if (killVoices || !voice.isLive) {
@@ -231,6 +240,9 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                 break;
             case MidiEventType.NoteOn:
                 const noteOn = e as NoteOnEvent;
+                if (this.silentScorePlayback && !isLive) {
+                    break;
+                }
                 this.channelNoteOn(noteOn.channel, noteOn.noteKey, noteOn.noteVelocity / 127.0, isLive);
                 break;
             case MidiEventType.NoteOff:

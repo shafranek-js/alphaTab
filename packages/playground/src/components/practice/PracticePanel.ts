@@ -1,5 +1,5 @@
 import * as alphaTab from '@coderline/alphatab';
-import { MidiInputService, type MidiInputState, type MidiNoteInput } from '../../input/MidiInputService';
+import type { MidiInputService, MidiInputState, MidiNoteInput } from '../../input/MidiInputService';
 import { css, html, injectStyles, type Mountable, parseHtml } from '../../util/Dom';
 import type { PianoKeyboard } from '../PianoKeyboard';
 import {
@@ -142,7 +142,6 @@ injectStyles(
 
 export class PracticePanel implements Mountable {
     readonly root: HTMLElement;
-    private midiService = new MidiInputService();
     private session = new PracticeSession<alphaTab.model.Beat>();
     private overlay: PracticeOverlay;
     private indicatorEl: HTMLElement;
@@ -161,13 +160,15 @@ export class PracticePanel implements Mountable {
     private showHints = true;
     private loopRange = false;
     private subscriptions: (() => void)[] = [];
-    private lastMidiState: MidiInputState = this.midiService.getState();
+    private lastMidiState: MidiInputState;
 
     public constructor(
         private api: alphaTab.AlphaTabApi,
+        private midiService: MidiInputService,
         overlayHost: HTMLElement,
         private keyboardPanel: PianoKeyboard | null = null
     ) {
+        this.lastMidiState = this.midiService.getState();
         this.root = parseHtml(html`
             <div class="at-footer-practice">
                 <div class="at-practice-panel">
@@ -221,12 +222,6 @@ export class PracticePanel implements Mountable {
         this.wireUi();
 
         this.subscriptions.push(this.midiService.onStateChange(state => this.updateMidiState(state)));
-        this.subscriptions.push(this.midiService.onMidiNote(note => this.handleMidiNote(note)));
-        this.subscriptions.push(this.midiService.onMidiNoteOff(note => this.handleMidiNoteOff(note)));
-        if (this.keyboardPanel) {
-            this.subscriptions.push(this.keyboardPanel.onVirtualNote(note => this.handleMidiNote(note)));
-            this.subscriptions.push(this.keyboardPanel.onVirtualNoteOff(note => this.handleMidiNoteOff(note)));
-        }
         this.subscriptions.push(this.api.scoreLoaded.on(() => this.rebuildQueue()));
         this.subscriptions.push(this.api.renderFinished.on(() => this.rebuildQueue()));
         this.subscriptions.push(this.api.playbackRangeChanged.on(() => this.rebuildQueue()));
@@ -262,7 +257,6 @@ export class PracticePanel implements Mountable {
             unsubscribe();
         }
         this.subscriptions = [];
-        this.midiService.dispose();
         this.overlay.dispose();
         this.root.remove();
     }
@@ -357,7 +351,7 @@ export class PracticePanel implements Mountable {
         this.refresh();
     }
 
-    private handleMidiNote(note: MidiNoteInput): void {
+    public handleMidiNote(note: MidiNoteInput): void {
         let channel = 0;
         const currentItem = this.session.getState().currentItem;
         if (currentItem?.beat) {
@@ -373,8 +367,12 @@ export class PracticePanel implements Mountable {
         this.applyInputResult(result);
     }
 
-    private handleMidiNoteOff(note: MidiNoteInput): void {
+    public handleMidiNoteOff(note: MidiNoteInput): void {
         this.keyboardPanel?.stopInputNote(note.note);
+    }
+
+    public clearActiveInput(): void {
+        this.keyboardPanel?.stopAllInputNotes();
     }
 
     private applyInputResult(result: PracticeInputResult<alphaTab.model.Beat>): void {

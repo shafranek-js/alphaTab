@@ -10,6 +10,7 @@ export interface MidiNoteInput {
     velocity: number;
     inputId: string;
     inputName: string;
+    timestampMs: number;
 }
 
 export interface MidiInputState {
@@ -159,6 +160,7 @@ export class MidiInputService {
         }
         this.inputs = [];
         this.noteCallbacks = [];
+        this.noteOffCallbacks = [];
         this.stateCallbacks = [];
     }
 
@@ -205,7 +207,8 @@ export class MidiInputService {
             pitchClass: noteNumber % 12,
             velocity: velocity,
             inputId: input.id,
-            inputName: input.name ?? 'MIDI Device'
+            inputName: input.name ?? 'MIDI Device',
+            timestampMs: performance.now()
         };
 
         if (isNoteOn) {

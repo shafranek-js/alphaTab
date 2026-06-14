@@ -181,6 +181,14 @@ export class AlphaSynthBase implements IAlphaSynth {
         }
     }
 
+    public get silentScorePlayback(): boolean {
+        return this.synthesizer.silentScorePlayback;
+    }
+
+    public set silentScorePlayback(value: boolean) {
+        this.synthesizer.silentScorePlayback = value;
+    }
+
     public get playbackRange(): PlaybackRange | null {
         return this.sequencer.mainPlaybackRange;
     }
@@ -314,7 +322,7 @@ export class AlphaSynthBase implements IAlphaSynth {
             if (this._isLiveMidiStopping) {
                 return;
             }
-            let samples: Float32Array = new Float32Array(
+            const samples: Float32Array = new Float32Array(
                 SynthConstants.MicroBufferSize * SynthConstants.MicroBufferCount * SynthConstants.AudioChannels
             );
             let bufferPos: number = 0;
@@ -549,6 +557,10 @@ export class AlphaSynthBase implements IAlphaSynth {
     public setChannelTranspositionPitch(channel: number, semitones: number): void {
         this._channelTranspositionPitches.set(channel, semitones);
         this.synthesizer.setChannelTranspositionPitch(channel, semitones);
+    }
+
+    public setChannelProgram(channel: number, program: number, percussion: boolean): void {
+        this.synthesizer.channelSetProgram(channel, program, percussion);
     }
 
     public setChannelMute(channel: number, mute: boolean): void {
@@ -908,6 +920,10 @@ export class AlphaSynthAudioExporter implements IAlphaSynthAudioExporter {
      */
     public setChannelTranspositionPitch(channel: number, semitones: number): void {
         this._synth.setChannelTranspositionPitch(channel, semitones);
+    }
+
+    public setChannelProgram(channel: number, program: number, percussion: boolean): void {
+        this._synth.channelSetProgram(channel, program, percussion);
     }
 
     /**

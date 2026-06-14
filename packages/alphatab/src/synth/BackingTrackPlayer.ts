@@ -52,6 +52,7 @@ class BackingTrackAudioSynthesizer implements IAudioSampleSynthesizer {
     private _midiEventQueue: Queue<SynthEvent> = new Queue<SynthEvent>();
 
     public masterVolume: number = 1;
+    public silentScorePlayback: boolean = false;
     public metronomeVolume: number = 0;
     public outSampleRate: number = 44100;
     public currentTempo: number = 120;
@@ -117,6 +118,9 @@ class BackingTrackAudioSynthesizer implements IAudioSampleSynthesizer {
         // not supported, ignore
     }
     public setChannelTranspositionPitch(_channel: number, _semitones: number): void {
+        // not supported, ignore
+    }
+    public channelSetProgram(_channel: number, _program: number, _percussion: boolean): void {
         // not supported, ignore
     }
     public channelSetMute(_channel: number, _mute: boolean): void {

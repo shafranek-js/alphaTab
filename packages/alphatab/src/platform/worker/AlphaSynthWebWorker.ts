@@ -84,6 +84,9 @@ export class AlphaSynthWebWorker {
             case 'alphaSynth.setCountInVolume':
                 this._player.countInVolume = data.value;
                 break;
+            case 'alphaSynth.setSilentScorePlayback':
+                this._player.silentScorePlayback = data.value;
+                break;
             case 'alphaSynth.setMidiEventsPlayedFilter':
                 this._player.midiEventsPlayedFilter = data.value;
                 break;
@@ -122,6 +125,9 @@ export class AlphaSynthWebWorker {
                 break;
             case 'alphaSynth.setChannelTranspositionPitch':
                 this._player.setChannelTranspositionPitch(data.channel, data.semitones);
+                break;
+            case 'alphaSynth.setChannelProgram':
+                this._player.setChannelProgram(data.channel, data.program, data.percussion);
                 break;
             case 'alphaSynth.setChannelSolo':
                 this._player.setChannelSolo(data.channel, data.solo);

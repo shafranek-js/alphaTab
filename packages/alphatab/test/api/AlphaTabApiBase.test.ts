@@ -41,6 +41,7 @@ class TestPlayer implements IAlphaSynth {
     public playbackRange: PlaybackRange | null = null;
     public isLooping: boolean = false;
     public countInVolume: number = 0;
+    public silentScorePlayback: boolean = false;
     public midiEventsPlayedFilter: MidiEventType[] = [];
     public output!: ISynthOutput;
     public readonly volumeChanges: number[] = [];
@@ -62,6 +63,7 @@ class TestPlayer implements IAlphaSynth {
     public updateSyncPoints(_syncPoints: BackingTrackSyncPoint[]): void {}
     public applyTranspositionPitches(_transpositionPitches: Map<number, number>): void {}
     public setChannelTranspositionPitch(_channel: number, _semitones: number): void {}
+    public setChannelProgram(_channel: number, _program: number, _percussion: boolean): void {}
     public setChannelMute(_channel: number, _mute: boolean): void {}
     public resetChannelStates(): void {}
     public setChannelSolo(_channel: number, _solo: boolean): void {}

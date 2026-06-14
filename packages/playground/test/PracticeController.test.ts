@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildPracticeQueue,
+    defaultPerformSettings,
     filterPracticeQueueByRange,
     findBestPianoTransposeIntervals,
+    type PerformExpectedItem,
+    PerformSession,
     type PracticeBeatSource,
     PracticeSession
 } from '../src/components/practice/PracticeController';
@@ -222,6 +225,84 @@ describe('PracticeController', () => {
             expect(result.state.currentIndex).toBe(0);
         });
     });
+
+    describe('perform session', () => {
+        it('ignores scoring before expected wall timestamps are ready', () => {
+            const session = performSession([performItem(60, 100)]);
+
+            const result = session.handleNoteOn(60, 1000);
+
+            expect(result.type).toBe('ignored');
+            expect(result.state.scoringReady).toBe(false);
+        });
+
+        it('matches a correct note once within the wall-clock timing window', () => {
+            const session = performSession([performItem(60, 100, 1000)]);
+
+            const matched = session.handleNoteOn(60, 1080);
+            const duplicate = session.handleNoteOn(60, 1085);
+
+            expect(matched.type).toBe('matched');
+            expect(duplicate.type).toBe('ignored');
+            expect(session.getState().correctCount).toBe(1);
+        });
+
+        it('tracks early and late timing from input timestamp minus expected wall timestamp', () => {
+            const session = performSession([performItem(60, 100, 1000), performItem(62, 200, 2000)]);
+
+            session.handleNoteOn(60, 950);
+            session.handleNoteOn(62, 2040);
+
+            expect(session.getState().earlyCount).toBe(1);
+            expect(session.getState().lateCount).toBe(1);
+        });
+
+        it('supports ignore octave in perform matching', () => {
+            const session = performSession([performItem(60, 100, 1000)], { ignoreOctave: true });
+
+            expect(session.handleNoteOn(72, 1000).type).toBe('matched');
+        });
+
+        it('matches repeated same pitch to the earliest overdue item first', () => {
+            const session = performSession([performItem(60, 100, 1000), performItem(60, 200, 1080)]);
+
+            const first = session.handleNoteOn(60, 1060);
+            const second = session.handleNoteOn(60, 1085);
+
+            expect(first.type).toBe('matched');
+            if (first.type === 'matched') {
+                expect(first.item.startTick).toBe(100);
+            }
+            expect(second.type).toBe('matched');
+            if (second.type === 'matched') {
+                expect(second.item.startTick).toBe(200);
+            }
+        });
+
+        it('marks missed notes during advancePosition', () => {
+            const session = performSession([performItem(60, 100, 1000)]);
+
+            const result = session.advancePosition(200, 1201);
+
+            expect(result.type).toBe('missed');
+            expect(session.getState().missedCount).toBe(1);
+        });
+
+        it('raises speed after three clean loop passes and caps at target speed', () => {
+            const session = performSession([performItem(60, 100, 1000)], {
+                startSpeed: 0.7,
+                targetSpeed: 0.8
+            });
+
+            for (let i = 0; i < 3; i++) {
+                session.handleNoteOn(60, 1000);
+                session.completePass(i + 1);
+            }
+
+            expect(session.getState().speed).toBe(0.8);
+            expect(session.getState().cleanPassStreak).toBe(0);
+        });
+    });
 });
 
 function beat(notes: number[], isRest = false): PracticeBeatSource {
@@ -235,4 +316,24 @@ function beatAt(notes: number[], startTick: number): PracticeBeatSource {
     const b = beat(notes);
     (b as any).absolutePlaybackStart = startTick;
     return b;
+}
+
+function performItem(pitch: number, startTick: number, expectedWallTimestampMs?: number): PerformExpectedItem<PracticeBeatSource> {
+    return {
+        beat: beatAt([pitch], startTick),
+        pitch,
+        startTick,
+        expectedWallTimestampMs,
+        matched: false
+    };
+}
+
+function performSession(
+    items: PerformExpectedItem<PracticeBeatSource>[],
+    settings: Partial<typeof defaultPerformSettings> = {}
+): PerformSession<PracticeBeatSource> {
+    const session = new PerformSession<PracticeBeatSource>();
+    session.configure({ ...defaultPerformSettings, ...settings });
+    session.start(items);
+    return session;
 }
