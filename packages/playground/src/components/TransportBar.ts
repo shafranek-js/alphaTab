@@ -287,7 +287,7 @@ export class TransportBar implements Mountable {
     private transposeUpBtn!: HTMLButtonElement;
 
     constructor(
-        api: alphaTab.AlphaTabApi,
+        private api: alphaTab.AlphaTabApi,
         private options: TransportBarOptions = {}
     ) {
         this.sidePanelMode = options.sidePanelMode ?? null;
@@ -470,6 +470,7 @@ export class TransportBar implements Mountable {
             this.looping.root.classList.toggle('active', next);
             this.saveSetting('isLooping', next);
         };
+        this.updateTransportControlsEnabledState();
 
         const metronomeInput = this.root.querySelector<HTMLInputElement>('.at-metronome-volume')!;
         metronomeInput.addEventListener('input', () => {
@@ -553,7 +554,7 @@ export class TransportBar implements Mountable {
         this.subscriptions.push(
             api.playerReady.on(() => {
                 this.isPlayerReady = true;
-                this.updatePlayPauseEnabledState();
+                this.updateTransportControlsEnabledState();
                 this.stop.setEnabled(true);
                 this.transposeDownBtn.removeAttribute('disabled');
                 this.transposeUpBtn.removeAttribute('disabled');
@@ -605,12 +606,17 @@ export class TransportBar implements Mountable {
     setBottomPanelMode(mode: PlaygroundBottomPanelMode): void {
         this.bottomPanelMode = mode;
         this.refreshActiveButtons();
-        this.updatePlayPauseEnabledState();
+        this.updateTransportControlsEnabledState();
     }
 
-    private updatePlayPauseEnabledState(): void {
+    private updateTransportControlsEnabledState(): void {
         const isPractice = this.bottomPanelMode === 'practice';
         this.playPause.setEnabled(this.isPlayerReady && !isPractice);
+        if (this.looping) {
+            this.looping.setEnabled(!isPractice);
+            this.looping.setTooltip(isPractice ? 'Looping is disabled in Practice' : 'Looping');
+            this.looping.root.classList.toggle('active', this.api.isLooping && !isPractice);
+        }
     }
 
     private refreshActiveButtons(): void {
@@ -662,7 +668,8 @@ export class TransportBar implements Mountable {
         }
 
         if (this.looping) {
-            this.looping.root.classList.toggle('active', loopVal);
+            const isPractice = this.bottomPanelMode === 'practice';
+            this.looping.root.classList.toggle('active', loopVal && !isPractice);
         }
     }
 
