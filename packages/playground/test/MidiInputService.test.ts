@@ -66,29 +66,6 @@ describe('MidiInputService', () => {
         expect(notes).toEqual([64]);
     });
 
-    it('emits timestamps for note-on and note-off messages', async () => {
-        const input = createInput('first', 'First Keyboard');
-        const access = {
-            inputs: new Map<string, FakeMidiInput>([[input.id, input]]),
-            onstatechange: null as (() => void) | null
-        };
-        const service = new MidiInputService({
-            requestMIDIAccess: async () => access
-        });
-        const noteOns: number[] = [];
-        const noteOffs: number[] = [];
-        service.onMidiNote(note => noteOns.push(note.timestampMs));
-        service.onMidiNoteOff(note => noteOffs.push(note.timestampMs));
-
-        await service.initMidi();
-        input.onmidimessage?.({ data: [0x90, 60, 100] });
-        input.onmidimessage?.({ data: [0x80, 60, 0] });
-
-        expect(noteOns).toHaveLength(1);
-        expect(noteOffs).toHaveLength(1);
-        expect(Number.isFinite(noteOns[0])).toBe(true);
-        expect(Number.isFinite(noteOffs[0])).toBe(true);
-    });
 });
 
 function createInput(id: string, name: string): FakeMidiInput {

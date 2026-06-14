@@ -224,6 +224,14 @@ interface VirtualKey {
     afterWhiteIndex?: number;
 }
 
+export interface VirtualKeyboardNoteInput {
+    note: number;
+    pitchClass: number;
+    velocity: number;
+    inputId: 'virtual-keyboard';
+    inputName: 'Virtual Keyboard';
+}
+
 export class PianoKeyboard implements Mountable {
     readonly root: HTMLElement;
     private subscriptions: (() => void)[] = [];
@@ -232,6 +240,8 @@ export class PianoKeyboard implements Mountable {
     private pressedMidiNotes = new Set<number>();
     private hintNotes: number[] = [];
     private activeChannels = new Map<number, number[]>();
+    private virtualNoteCallbacks: Array<(note: VirtualKeyboardNoteInput) => void> = [];
+    private virtualNoteOffCallbacks: Array<(note: VirtualKeyboardNoteInput) => void> = [];
 
 
     private shortcutMap: Record<string, number> = {
@@ -461,17 +471,19 @@ export class PianoKeyboard implements Mountable {
             }
             btn.setPointerCapture(e.pointerId);
             btn.classList.add('is-pressed');
-            this.playMidiNote(key.midi);
+            this.playVirtualNote(key.midi);
         });
 
         btn.addEventListener('pointerup', e => {
             btn.releasePointerCapture(e.pointerId);
             btn.classList.remove('is-pressed');
+            this.stopVirtualNote(key.midi);
         });
 
         btn.addEventListener('pointercancel', e => {
             btn.releasePointerCapture(e.pointerId);
             btn.classList.remove('is-pressed');
+            this.stopVirtualNote(key.midi);
         });
 
         btn.addEventListener('pointerleave', () => {
@@ -479,6 +491,53 @@ export class PianoKeyboard implements Mountable {
         });
 
         return btn;
+    }
+
+    public onVirtualNote(callback: (note: VirtualKeyboardNoteInput) => void): () => void {
+        this.virtualNoteCallbacks.push(callback);
+        return () => {
+            this.virtualNoteCallbacks = this.virtualNoteCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
+    public onVirtualNoteOff(callback: (note: VirtualKeyboardNoteInput) => void): () => void {
+        this.virtualNoteOffCallbacks.push(callback);
+        return () => {
+            this.virtualNoteOffCallbacks = this.virtualNoteOffCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
+    private playVirtualNote(noteNumber: number, velocity = 127): void {
+        if (this.virtualNoteCallbacks.length === 0) {
+            this.playMidiNote(noteNumber);
+            return;
+        }
+
+        const note = this.toVirtualNoteInput(noteNumber, velocity);
+        for (const callback of this.virtualNoteCallbacks) {
+            callback(note);
+        }
+    }
+
+    private stopVirtualNote(noteNumber: number, velocity = 0): void {
+        if (this.virtualNoteOffCallbacks.length === 0) {
+            return;
+        }
+
+        const note = this.toVirtualNoteInput(noteNumber, velocity);
+        for (const callback of this.virtualNoteOffCallbacks) {
+            callback(note);
+        }
+    }
+
+    private toVirtualNoteInput(noteNumber: number, velocity: number): VirtualKeyboardNoteInput {
+        return {
+            note: noteNumber,
+            pitchClass: noteNumber % 12,
+            velocity,
+            inputId: 'virtual-keyboard',
+            inputName: 'Virtual Keyboard'
+        };
     }
 
     private playMidiNote(noteNumber: number): void {
@@ -642,7 +701,7 @@ export class PianoKeyboard implements Mountable {
             const btn = this.root.querySelector(`[data-midi="${midi}"]`) as HTMLButtonElement;
             if (btn) {
                 btn.classList.add('is-pressed');
-                this.playMidiNote(midi);
+                this.playVirtualNote(midi);
             }
         }
     };
@@ -657,6 +716,7 @@ export class PianoKeyboard implements Mountable {
             if (btn) {
                 btn.classList.remove('is-pressed');
             }
+            this.stopVirtualNote(midi);
         }
     };
 }

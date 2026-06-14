@@ -109,4 +109,35 @@ describe('PianoKeyboard live note queueing', () => {
         expect(mockPlayer.stopLiveNote).toHaveBeenLastCalledWith(1, 60);
         expect(mockPlayer.stopLiveNote).toHaveBeenCalledTimes(2);
     });
+
+    it('emits virtual note events for practice input', async () => {
+        const { PianoKeyboard } = await import('../src/components/PianoKeyboard');
+
+        const mockPlayer = {
+            playLiveNote: vi.fn(),
+            stopLiveNote: vi.fn(),
+            playOneTimeMidiFile: vi.fn()
+        };
+        const mockApi = {
+            scoreLoaded: { on: vi.fn(() => vi.fn()) },
+            renderFinished: { on: vi.fn(() => vi.fn()) },
+            playedBeatChanged: { on: vi.fn(() => vi.fn()) },
+            playerStateChanged: { on: vi.fn(() => vi.fn()) },
+            tracks: [],
+            player: mockPlayer
+        };
+
+        const keyboard = new PianoKeyboard(mockApi as any);
+        const noteOns: number[] = [];
+        const noteOffs: number[] = [];
+        keyboard.onVirtualNote(note => noteOns.push(note.note));
+        keyboard.onVirtualNoteOff(note => noteOffs.push(note.note));
+
+        (keyboard as any).playVirtualNote(60);
+        (keyboard as any).stopVirtualNote(60);
+
+        expect(noteOns).toEqual([60]);
+        expect(noteOffs).toEqual([60]);
+        expect(mockPlayer.playOneTimeMidiFile).not.toHaveBeenCalled();
+    });
 });

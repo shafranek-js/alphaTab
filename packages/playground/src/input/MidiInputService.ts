@@ -8,7 +8,6 @@ export interface MidiNoteInput {
     note: number;
     pitchClass: number;
     velocity: number;
-    timestampMs: number;
     inputId: string;
     inputName: string;
 }
@@ -205,7 +204,6 @@ export class MidiInputService {
             note: noteNumber,
             pitchClass: noteNumber % 12,
             velocity: velocity,
-            timestampMs: performance.now(),
             inputId: input.id,
             inputName: input.name ?? 'MIDI Device'
         };
