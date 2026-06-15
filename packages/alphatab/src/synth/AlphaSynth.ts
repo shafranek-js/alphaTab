@@ -435,8 +435,10 @@ export class AlphaSynthBase implements IAlphaSynth {
             this._isLiveMidiActive = true;
             this._isLiveMidiStopping = false;
             this._notPlayedSamples = 0;
-            this.output.activate();
-            this.output.play();
+            if (this.state !== PlayerState.Playing) {
+                this.output.activate();
+                this.output.play();
+            }
         } else {
             this._isLiveMidiStopping = false;
         }

@@ -538,6 +538,20 @@ describe('PracticeController', () => {
             expect(session.getState().speed).toBe(0.8);
             expect(session.getState().cleanPassStreak).toBe(0);
         });
+
+        it('keeps completed pass statistics after resetting counters for the next pass', () => {
+            const session = performSession([performItem(60, 100, 1000), performItem(62, 200, 2000)]);
+
+            session.handleNoteOn(60, 980);
+            session.handleNoteOn(62, 2040);
+            const pass = session.completePass(1);
+
+            expect(pass?.stats.correctCount).toBe(2);
+            expect(pass?.stats.earlyCount).toBe(1);
+            expect(pass?.stats.lateCount).toBe(1);
+            expect(session.getState().correctCount).toBe(0);
+            expect(session.getState().lastPass?.correctCount).toBe(2);
+        });
     });
 });
 

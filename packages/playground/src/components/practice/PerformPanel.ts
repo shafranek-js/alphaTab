@@ -561,11 +561,12 @@ export class PerformPanel implements Mountable {
         const state = this.session.getState();
         this.startStopButton.textContent = state.running ? 'Stop' : 'Start';
         this.passEl.textContent = `Pass ${state.currentPass}`;
-        this.correctEl.textContent = `Correct ${state.correctCount}`;
-        this.wrongEl.textContent = `Wrong ${state.wrongCount}`;
-        this.missedEl.textContent = `Missed ${state.missedCount}`;
-        this.earlyEl.textContent = `Early ${state.earlyCount}`;
-        this.lateEl.textContent = `Late ${state.lateCount}`;
+        const displayedStats = !state.running && state.lastPass ? state.lastPass : state;
+        this.correctEl.textContent = `Correct ${displayedStats.correctCount}`;
+        this.wrongEl.textContent = `Wrong ${displayedStats.wrongCount}`;
+        this.missedEl.textContent = `Missed ${displayedStats.missedCount}`;
+        this.earlyEl.textContent = `Early ${displayedStats.earlyCount}`;
+        this.lateEl.textContent = `Late ${displayedStats.lateCount}`;
         this.cleanEl.textContent = `Clean ${state.cleanPassStreak}`;
         this.speedEl.textContent = `${state.speed.toFixed(1)}x`;
 
@@ -593,11 +594,10 @@ export class PerformPanel implements Mountable {
         );
         const items: PerformExpectedItem<alphaTab.model.Beat>[] = [];
         for (const item of queue) {
-            const transposition = this.getTrackTransposition(item.beat);
             for (const pitch of item.expectedNotes) {
                 items.push({
                     beat: item.beat,
-                    pitch: pitch + transposition,
+                    pitch,
                     startTick: item.startTick,
                     matched: false
                 });
@@ -666,13 +666,6 @@ export class PerformPanel implements Mountable {
         const current = this.session.getState().currentItem;
         const beatTrack = current?.beat ? (current.beat as any).voice?.bar?.staff?.track : null;
         return beatTrack?.playbackInfo?.primaryChannel ?? this.api.tracks?.[0]?.playbackInfo?.primaryChannel ?? 0;
-    }
-
-    private getTrackTransposition(beat: alphaTab.model.Beat): number {
-        const track = (beat as any).voice?.bar?.staff?.track;
-        const index = typeof track?.index === 'number' ? track.index : this.api.tracks.indexOf(track);
-        const transpositions = this.api.settings.notation.transpositionPitches;
-        return index >= 0 ? (transpositions[index] ?? 0) : 0;
     }
 
     private copyPlaybackRange(range: alphaTab.synth.PlaybackRange | null): alphaTab.synth.PlaybackRange | null {

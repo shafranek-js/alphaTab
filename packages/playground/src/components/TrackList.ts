@@ -32,6 +32,7 @@ export class TrackList implements Mountable {
         const key = `${score.title}::${score.artist}`;
         const savedSettingsStr = typeof localStorage !== 'undefined' ? localStorage.getItem('at-playground-track-settings') : null;
         let savedSettings: any = null;
+        let restoredActiveTracks: alphaTab.model.Track[] | null = null;
         if (savedSettingsStr) {
             try {
                 const allSettings = JSON.parse(savedSettingsStr);
@@ -122,9 +123,7 @@ export class TrackList implements Mountable {
                 }
             }
             if (activeTracks.length > 0) {
-                (this.api as any)._tracks = activeTracks;
-                (this.api as any)._trackIndexes = activeTracks.map(t => t.index);
-                (this.api as any)._trackIndexLookup = new Set(activeTracks.map(t => t.index));
+                restoredActiveTracks = activeTracks;
             }
         }
 
@@ -139,6 +138,10 @@ export class TrackList implements Mountable {
             const item = new TrackItem(this.api, track);
             this.items.push(item);
             this.root.appendChild(item.root);
+        }
+
+        if (restoredActiveTracks) {
+            this.api.renderTracks(restoredActiveTracks);
         }
         this.refreshActive();
         this.applyPlaybackStates();
@@ -167,6 +170,10 @@ export class TrackList implements Mountable {
     /** All TrackItem instances, in score order. */
     getItems(): readonly TrackItem[] {
         return this.items;
+    }
+
+    getVolumeScale(track: alphaTab.model.Track): number | null {
+        return this.items.find(i => i.track.index === track.index)?.getVolumeScale() ?? null;
     }
 
     dispose(): void {

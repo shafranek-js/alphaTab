@@ -202,7 +202,7 @@ function getBeatStartTick<TBeat extends PracticeBeatSource>(
     }
 
     const cacheTick = tickLookup?.getBeatStart(beat);
-    if (typeof cacheTick === 'number' && cacheTick > 0) {
+    if (typeof cacheTick === 'number' && cacheTick >= 0) {
         return cacheTick;
     }
 

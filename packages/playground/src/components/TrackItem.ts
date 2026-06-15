@@ -156,6 +156,8 @@ export class TrackItem implements Mountable {
     private transposeLockBtn: HTMLButtonElement;
     private playbackVolumeBase: number;
     private midiLoadedUnsubscribe: (() => void) | null = null;
+    private dynamicMidiCleanup: (() => void) | null = null;
+    private midiReloadDebounceTimer: number | undefined;
 
     constructor(
         private api: alphaTab.AlphaTabApi,
@@ -339,7 +341,7 @@ export class TrackItem implements Mountable {
                 }
             }
 
-            this.loadMidiForScoreDynamic();
+            this.scheduleMidiReload();
             saveTrackSettings(this.api);
         });
 
@@ -471,8 +473,14 @@ export class TrackItem implements Mountable {
         return this.volume.valueAsNumber;
     }
 
+    getVolumeScale(): number {
+        return this.volume.valueAsNumber / Math.max(1, this.playbackVolumeBase);
+    }
+
     dispose(): void {
         this.midiLoadedUnsubscribe?.();
+        this.clearPendingMidiReload();
+        this.dynamicMidiCleanup?.();
         this.root.remove();
     }
 
@@ -545,13 +553,24 @@ export class TrackItem implements Mountable {
     }
 
     private loadMidiForScoreDynamic(): void {
+        this.clearPendingMidiReload();
+        this.dynamicMidiCleanup?.();
+        this.dynamicMidiCleanup = null;
+
         const wasPlaying = this.api.playerState === alphaTab.synth.PlayerState.Playing;
         const savedTick = this.api.tickPosition;
 
         let unsubscribeLoaded: (() => void) | null = null;
         let unsubscribeFailed: (() => void) | null = null;
+        let ignoreCurrentMidi = true;
+        let cleanedUp = false;
 
         const cleanUp = () => {
+            if (cleanedUp) {
+                return;
+            }
+            cleanedUp = true;
+            this.dynamicMidiCleanup = null;
             if (unsubscribeLoaded) {
                 unsubscribeLoaded();
             }
@@ -561,6 +580,9 @@ export class TrackItem implements Mountable {
         };
 
         unsubscribeLoaded = this.api.midiLoaded.on(() => {
+            if (ignoreCurrentMidi) {
+                return;
+            }
             cleanUp();
             this.api.tickPosition = savedTick;
             if (wasPlaying) {
@@ -568,11 +590,26 @@ export class TrackItem implements Mountable {
             }
         });
 
-        unsubscribeFailed = this.api.error.on(() => {
+        unsubscribeFailed = this.api.player?.midiLoadFailed.on(() => {
             cleanUp();
-        });
+        }) ?? null;
 
+        this.dynamicMidiCleanup = cleanUp;
+        ignoreCurrentMidi = false;
         this.api.loadMidiForScore();
+    }
+
+    private scheduleMidiReload(): void {
+        clearTimeout(this.midiReloadDebounceTimer);
+        this.midiReloadDebounceTimer = window.setTimeout(() => {
+            this.midiReloadDebounceTimer = undefined;
+            this.loadMidiForScoreDynamic();
+        }, 300);
+    }
+
+    private clearPendingMidiReload(): void {
+        clearTimeout(this.midiReloadDebounceTimer);
+        this.midiReloadDebounceTimer = undefined;
     }
 
     private resetPlaybackVolumeBase(): void {

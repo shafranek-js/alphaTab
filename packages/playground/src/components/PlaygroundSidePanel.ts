@@ -225,6 +225,7 @@ export class PlaygroundSidePanel implements Mountable {
     private lightThemeBgColor: string = '#ebebeb';
     private darkThemeBgColor: string = '#0c0f18';
     private hiddenTracksVolume: number = 1;
+    private saveDebounceTimer: number | undefined;
 
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
 
@@ -1184,7 +1185,7 @@ export class PlaygroundSidePanel implements Mountable {
         }
 
         for (const track of this.api.tracks) {
-            this.api.changeTrackVolume([track], 1);
+            this.api.changeTrackVolume([track], this.trackList.getVolumeScale(track) ?? 1);
         }
 
         const hiddenTracks = score.tracks.filter(track => {
@@ -1333,6 +1334,7 @@ export class PlaygroundSidePanel implements Mountable {
     }
 
     dispose(): void {
+        this.flushSettings();
         for (const unsubscribe of this.subscriptions) {
             unsubscribe();
         }
@@ -1528,6 +1530,20 @@ export class PlaygroundSidePanel implements Mountable {
     }
 
     private saveAllSettings(): void {
+        clearTimeout(this.saveDebounceTimer);
+        this.saveDebounceTimer = window.setTimeout(() => {
+            this.saveDebounceTimer = undefined;
+            this.writeAllSettings();
+        }, 300);
+    }
+
+    private flushSettings(): void {
+        clearTimeout(this.saveDebounceTimer);
+        this.saveDebounceTimer = undefined;
+        this.writeAllSettings();
+    }
+
+    private writeAllSettings(): void {
         try {
             const notationElements: any = {};
             for (const [k, v] of this.api.settings.notation.elements.entries()) {
@@ -1713,6 +1729,7 @@ export class PlaygroundSidePanel implements Mountable {
 
     private exportSettings(): void {
         try {
+            this.flushSettings();
             const exportData = collectPlaygroundSettings(localStorage);
             const jsonString = JSON.stringify(exportData, null, 2);
             const blob = new Blob([jsonString], { type: 'application/json' });
