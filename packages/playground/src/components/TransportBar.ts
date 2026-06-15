@@ -814,28 +814,7 @@ export class TransportBar implements Mountable {
         key: 'metronomeVolume' | 'countInVolume' | 'playbackSpeed' | 'isLooping' | 'transpose' | 'isKeyboardVisible',
         value: any
     ): void {
-        try {
-            const dataStr = localStorage.getItem('at-playground-settings');
-            const data = dataStr ? JSON.parse(dataStr) : {};
-            if (!data.api) {
-                data.api = {};
-            }
-            if (!data.custom) {
-                data.custom = {};
-            }
-
-            if (key === 'transpose') {
-                data.custom.transpose = value;
-            } else if (key === 'isKeyboardVisible') {
-                data.custom.isKeyboardVisible = value;
-            } else {
-                data.api[key] = value;
-            }
-
-            localStorage.setItem('at-playground-settings', JSON.stringify(data));
-        } catch (e) {
-            console.error('Failed to save setting to localStorage:', e);
-        }
+        // auto-save disabled — values persist in-memory, use "Save Settings" to persist
     }
 
     dispose(): void {

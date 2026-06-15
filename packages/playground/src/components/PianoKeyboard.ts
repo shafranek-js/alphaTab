@@ -244,6 +244,7 @@ export class PianoKeyboard implements Mountable {
     private liveChannelPrograms = new Map<number, { program: number; percussion: boolean }>();
     private virtualNoteCallbacks: Array<(note: VirtualKeyboardNoteInput) => void> = [];
     private virtualNoteOffCallbacks: Array<(note: VirtualKeyboardNoteInput) => void> = [];
+    private pressedShortcutNotes = new Map<string, number>();
 
 
     private shortcutMap: Record<string, number> = {
@@ -623,6 +624,9 @@ export class PianoKeyboard implements Mountable {
     }
 
     public setHintNotes(midiNotes: number[]): void {
+        if (this.hintNotes.length === midiNotes.length && this.hintNotes.every((n, i) => n === midiNotes[i])) {
+            return;
+        }
         this.hintNotes = midiNotes;
         this.applyHintNotes();
     }
@@ -706,12 +710,17 @@ export class PianoKeyboard implements Mountable {
     }
 
     private applyHintNotes(): void {
-        for (const el of this.root.querySelectorAll('.piano-key.hint-highlight')) {
-            el.classList.remove('hint-highlight');
+        const hintSet = new Set(this.hintNotes);
+        const existing = this.root.querySelectorAll('.piano-key.hint-highlight');
+        for (const el of existing) {
+            const midi = Number((el as HTMLElement).dataset.midi);
+            if (!hintSet.has(midi)) {
+                el.classList.remove('hint-highlight');
+            }
         }
         for (const note of this.hintNotes) {
-            const keyEl = this.root.querySelector(`[data-midi="${note}"]`);
-            if (keyEl) {
+            const keyEl = this.root.querySelector(`[data-midi="${note}"]`) as HTMLElement | null;
+            if (keyEl && !keyEl.classList.contains('hint-highlight')) {
                 keyEl.classList.add('hint-highlight');
             }
         }
@@ -735,11 +744,13 @@ export class PianoKeyboard implements Mountable {
 
         const offset = this.shortcutMap[e.key.toLowerCase()];
         if (offset !== undefined) {
-            const midi = (this.middleOctave + 1) * 12 + offset;
+            const key = e.key.toLowerCase();
+            const midi = this.resolveShortcutMidi(offset);
             if (this.pressedMidiNotes.has(midi)) {
                 return;
             }
             this.pressedMidiNotes.add(midi);
+            this.pressedShortcutNotes.set(key, midi);
 
             const btn = this.root.querySelector(`[data-midi="${midi}"]`) as HTMLButtonElement;
             if (btn) {
@@ -752,7 +763,9 @@ export class PianoKeyboard implements Mountable {
     private handleKeyUp = (e: KeyboardEvent): void => {
         const offset = this.shortcutMap[e.key.toLowerCase()];
         if (offset !== undefined) {
-            const midi = (this.middleOctave + 1) * 12 + offset;
+            const key = e.key.toLowerCase();
+            const midi = this.pressedShortcutNotes.get(key) ?? this.resolveShortcutMidi(offset);
+            this.pressedShortcutNotes.delete(key);
             this.pressedMidiNotes.delete(midi);
 
             const btn = this.root.querySelector(`[data-midi="${midi}"]`);
@@ -762,4 +775,18 @@ export class PianoKeyboard implements Mountable {
             this.stopVirtualNote(midi);
         }
     };
+
+    private resolveShortcutMidi(offset: number): number {
+        const hinted = this.hintNotes.find(note => note % 12 === offset);
+        if (hinted !== undefined) {
+            return hinted;
+        }
+        // fallback: center octave of visible keyboard
+        if (this.keys.length > 0) {
+            const midKey = this.keys[Math.floor(this.keys.length / 2)];
+            const baseOctave = Math.floor(midKey.midi / 12);
+            return baseOctave * 12 + offset;
+        }
+        return (this.middleOctave + 1) * 12 + offset;
+    }
 }

@@ -93,6 +93,8 @@ export class PracticeOverlay implements Mountable {
     readonly root: HTMLElement;
     private clearFeedbackTimer: number | null = null;
     private pulseGroups: PulseGroup[] = [];
+    private _lastItem: PracticeQueueItem<alphaTab.model.Beat> | null = null;
+    private _lastFeedback: OverlayFeedback = 'current';
 
     public constructor(
         private api: alphaTab.AlphaTabApi,
@@ -103,6 +105,11 @@ export class PracticeOverlay implements Mountable {
     }
 
     public showItem(item: PracticeQueueItem<alphaTab.model.Beat> | null, matchedNotes: number[] = []): void {
+        if (item === this._lastItem && this._lastFeedback === 'current') {
+            return;
+        }
+        this._lastItem = item;
+        this._lastFeedback = 'current';
         this.render(item, 'current', matchedNotes);
     }
 
@@ -122,6 +129,7 @@ export class PracticeOverlay implements Mountable {
             window.clearTimeout(this.clearFeedbackTimer);
             this.clearFeedbackTimer = null;
         }
+        this._lastItem = null;
         this.clearPulseTargets();
         this.root.replaceChildren();
     }

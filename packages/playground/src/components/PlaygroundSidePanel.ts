@@ -225,7 +225,6 @@ export class PlaygroundSidePanel implements Mountable {
     private lightThemeBgColor: string = '#ebebeb';
     private darkThemeBgColor: string = '#0c0f18';
     private hiddenTracksVolume: number = 1;
-    private saveDebounceTimer: number | undefined;
 
     onModeChange: ((mode: PlaygroundSidePanelMode) => void) | null = null;
 
@@ -290,13 +289,11 @@ export class PlaygroundSidePanel implements Mountable {
         this.closeButton.onClick = () => this.setMode(null);
         this.trackList = mount(this.root, '.cmp-track-list', new TrackList(api));
         this.buildSettings();
-        this.saveAllSettings();
         this.subscriptions.push(
             api.scoreLoaded.on(score => {
                 this.applySavedStylesheetSettings(score);
                 applySuzukiNoteColors(score, this.noteColorScheme === 'suzuki');
                 this.buildSettings();
-                this.saveAllSettings();
             })
         );
         this.subscriptions.push(
@@ -632,6 +629,13 @@ export class PlaygroundSidePanel implements Mountable {
             this.section('Settings Control', [
                 this.actionsRow([
                     {
+                        label: 'Save Settings',
+                        action: () => {
+                            this.writeAllSettings();
+                            this.render();
+                        }
+                    },
+                    {
                         label: 'Export Settings',
                         action: () => this.exportSettings()
                     },
@@ -938,7 +942,6 @@ export class PlaygroundSidePanel implements Mountable {
         return this.buildFontRow(label, font, onChange => {
             onChange(font);
             this.api.settings.display.resources.elementFonts.set(element, font);
-            this.saveAllSettings();
             this.render();
         });
     }
@@ -1024,7 +1027,6 @@ export class PlaygroundSidePanel implements Mountable {
         const initialValue = this.api.settings.notation.isNotationElementVisible(element);
         return this.toggleRow(label, initialValue, value => {
             this.api.settings.notation.elements.set(element, value);
-            this.saveAllSettings();
             this.update(true);
         });
     }
@@ -1334,7 +1336,7 @@ export class PlaygroundSidePanel implements Mountable {
     }
 
     dispose(): void {
-        this.flushSettings();
+        this.writeAllSettings();
         for (const unsubscribe of this.subscriptions) {
             unsubscribe();
         }
@@ -1526,25 +1528,28 @@ export class PlaygroundSidePanel implements Mountable {
     }
 
     private saveUserSetting(_category: string, _key: string, _value: any): void {
-        this.saveAllSettings();
+        // auto-save disabled — use manual "Save Settings" button
     }
 
-    private saveAllSettings(): void {
-        clearTimeout(this.saveDebounceTimer);
-        this.saveDebounceTimer = window.setTimeout(() => {
-            this.saveDebounceTimer = undefined;
-            this.writeAllSettings();
-        }, 300);
-    }
-
-    private flushSettings(): void {
-        clearTimeout(this.saveDebounceTimer);
-        this.saveDebounceTimer = undefined;
+    public saveAllNow(): void {
         this.writeAllSettings();
     }
 
     private writeAllSettings(): void {
         try {
+            // preserve existing keys from storage to avoid wiping PerformPanel settings
+            // and to avoid capturing perform-modified API values
+            let existingData: any = {};
+            const oldDataStr = localStorage.getItem('at-playground-settings');
+            if (oldDataStr) {
+                try {
+                    existingData = JSON.parse(oldDataStr) || {};
+                } catch { /* ignore corrupt old data */ }
+            }
+            const existingCustom = (existingData.custom && typeof existingData.custom === 'object') ? existingData.custom : {};
+            const existingApi = (existingData.api && typeof existingData.api === 'object') ? existingData.api : {};
+            const existingStylesheet = (existingData.stylesheet && typeof existingData.stylesheet === 'object') ? existingData.stylesheet : {};
+
             const notationElements: any = {};
             for (const [k, v] of this.api.settings.notation.elements.entries()) {
                 notationElements[String(k)] = v;
@@ -1552,9 +1557,10 @@ export class PlaygroundSidePanel implements Mountable {
 
             const data: any = {
                 settings: {},
-                api: {},
-                stylesheet: {},
+                api: { ...existingApi },
+                stylesheet: { ...existingStylesheet },
                 custom: {
+                    ...existingCustom,
                     theme: document.documentElement.classList.contains('dark-theme') ? 'dark' : 'light',
                     noteColorScheme: this.noteColorScheme,
                     barCursorColor: this.barCursorColor,
@@ -1729,7 +1735,7 @@ export class PlaygroundSidePanel implements Mountable {
 
     private exportSettings(): void {
         try {
-            this.flushSettings();
+            this.writeAllSettings();
             const exportData = collectPlaygroundSettings(localStorage);
             const jsonString = JSON.stringify(exportData, null, 2);
             const blob = new Blob([jsonString], { type: 'application/json' });

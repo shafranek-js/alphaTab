@@ -868,7 +868,7 @@ export class PerformSession<TBeat extends PracticeBeatSource = PracticeBeatSourc
     }
 
     private isScoringReady(): boolean {
-        return this.items.length > 0 && this.items.every(item => item.expectedWallTimestampMs !== undefined);
+        return this.items.some(item => !item.matched && item.expectedWallTimestampMs !== undefined);
     }
 
     private normalize(note: number): number {

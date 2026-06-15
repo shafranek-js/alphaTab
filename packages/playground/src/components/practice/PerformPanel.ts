@@ -21,6 +21,8 @@ import { TempoCursorOverlay } from './TempoCursorOverlay';
 interface PlaybackSnapshot {
     playbackSpeed: number;
     isLooping: boolean;
+    metronomeVolume: number;
+    countInVolume: number;
     playbackRange: alphaTab.synth.PlaybackRange | null;
     tracks: Array<{ track: alphaTab.model.Track; isMute: boolean; isSolo: boolean }>;
 }
@@ -38,6 +40,8 @@ interface PerformBuildResult {
 }
 
 const positionBufferSize = 80;
+const performLeadInTicks = 3840;
+const performHintLeadInMs = 1000;
 
 injectStyles(
     'PerformPanel',
@@ -392,6 +396,8 @@ export class PerformPanel implements Mountable {
         this.snapshot = {
             playbackSpeed: this.api.playbackSpeed,
             isLooping: this.api.isLooping,
+            metronomeVolume: this.api.metronomeVolume,
+            countInVolume: this.api.countInVolume,
             playbackRange: this.copyPlaybackRange(this.api.playbackRange),
             tracks: (this.api.score?.tracks ?? []).map(track => ({
                 track,
@@ -401,21 +407,21 @@ export class PerformPanel implements Mountable {
         };
         this.restored = false;
         this.positionSamples = [];
-        this.previousTick = selectedRange?.startTick ?? expectedItems[0].startTick;
+        const playbackStartTick = this.getLeadInStartTick(selectedRange, expectedItems[0].startTick);
+        const playbackRange = this.getLeadInPlaybackRange(selectedRange, playbackStartTick);
+        this.previousTick = playbackStartTick;
         this.session.configure(this.settings);
         const state = this.session.start(expectedItems);
 
         if (this.api.player) {
             this.api.player.silentScorePlayback = true;
         }
-        this.api.playbackRange = selectedRange;
+        this.api.playbackRange = playbackRange;
         this.api.isLooping = this.loopEnabled;
         this.api.playbackSpeed = state.speed;
-        if (selectedRange) {
-            this.api.tickPosition = selectedRange.startTick;
-        } else {
-            this.api.tickPosition = expectedItems[0].startTick;
-        }
+        this.api.metronomeVolume = 0.1;
+        this.api.countInVolume = 0.1;
+        this.api.tickPosition = playbackStartTick;
         this.api.play();
         this.feedbackEl.textContent = 'Perform running.';
         this.feedbackEl.className = 'at-perform-feedback';
@@ -440,28 +446,23 @@ export class PerformPanel implements Mountable {
     }
 
     private restorePlayback(): void {
-        if (this.restored) {
+        const snapshot = this.snapshot;
+        this.snapshot = null;
+        if (!snapshot) {
             return;
         }
         this.restored = true;
-        const snapshot = this.snapshot;
-        this.snapshot = null;
-        if (this.api.playerState === alphaTab.synth.PlayerState.Playing) {
-            this.api.pause();
-        }
+        this.api.stop();
         if (this.api.player) {
             this.api.player.silentScorePlayback = false;
-        }
-        if (!snapshot) {
-            return;
         }
         this.api.playbackRange = this.copyPlaybackRange(snapshot.playbackRange);
         this.api.isLooping = snapshot.isLooping;
         this.api.playbackSpeed = snapshot.playbackSpeed;
+        this.api.metronomeVolume = snapshot.metronomeVolume;
+        this.api.countInVolume = snapshot.countInVolume;
         for (const item of snapshot.tracks) {
             this.api.changeTrackMute([item.track], item.isMute);
-        }
-        for (const item of snapshot.tracks) {
             this.api.changeTrackSolo([item.track], item.isSolo);
         }
     }
@@ -570,21 +571,51 @@ export class PerformPanel implements Mountable {
         this.cleanEl.textContent = `Clean ${state.cleanPassStreak}`;
         this.speedEl.textContent = `${state.speed.toFixed(1)}x`;
 
-        if (state.running && state.currentItem) {
-            const practiceItem = this.toPracticeQueueItem(state.currentItem);
+        if (state.running) {
+            const practiceItem = this.toPracticeQueueItem(this.selectHintItem(state));
             this.overlay.showItem(practiceItem);
             if (this.showHints && practiceItem) {
                 this.keyboardPanel?.setHintNotes(practiceItem.expectedNotes);
-            } else {
+            } else if (!this.showHints) {
                 this.keyboardPanel?.clearHints();
             }
         } else {
             this.keyboardPanel?.clearHints();
-            if (!state.running) {
-                this.overlay.clear();
-                this.tempoOverlay.clear();
-            }
+            this.overlay.clear();
+            this.tempoOverlay.clear();
         }
+    }
+
+    private selectHintItem(state: ReturnType<PerformSession<alphaTab.model.Beat>['getState']>): PerformExpectedItem<alphaTab.model.Beat> | null {
+        if (!state.running) {
+            return null;
+        }
+
+        const now = performance.now();
+        const allItems = this.session.getExpectedItems().filter(item => !item.matched);
+        const pendingItems = allItems.filter(item => item.expectedWallTimestampMs !== undefined);
+
+        if (pendingItems.length > 0) {
+            const activeItems = pendingItems
+                .filter(item => Math.abs(now - item.expectedWallTimestampMs!) <= this.settings.timingWindowMs)
+                .sort((a, b) => a.expectedWallTimestampMs! - b.expectedWallTimestampMs!);
+            if (activeItems.length > 0) {
+                return activeItems[0];
+            }
+
+            return (
+                pendingItems
+                    .filter(item => item.expectedWallTimestampMs! > now && item.expectedWallTimestampMs! - now <= performHintLeadInMs)
+                    .sort((a, b) => a.expectedWallTimestampMs! - b.expectedWallTimestampMs!)[0] ?? null
+            );
+        }
+
+        // fallback: no wall timestamps yet (initial load) — show first upcoming item by startTick
+        const sampleTick = this.positionSamples.length > 0
+            ? this.positionSamples[this.positionSamples.length - 1].currentTick
+            : this.api.tickPosition;
+        const next = allItems.find(item => item.startTick >= sampleTick);
+        return next ?? allItems[0] ?? null;
     }
 
     private buildPerformItems(range: alphaTab.synth.PlaybackRange | null): PerformBuildResult {
@@ -607,6 +638,24 @@ export class PerformPanel implements Mountable {
             expectedItems: items,
             tempoQueue: queue
         };
+    }
+
+    private getLeadInStartTick(range: alphaTab.synth.PlaybackRange | null, firstExpectedTick: number): number {
+        const requestedStartTick = range?.startTick ?? firstExpectedTick;
+        return Math.max(0, Math.min(requestedStartTick, firstExpectedTick) - performLeadInTicks);
+    }
+
+    private getLeadInPlaybackRange(
+        range: alphaTab.synth.PlaybackRange | null,
+        playbackStartTick: number
+    ): alphaTab.synth.PlaybackRange | null {
+        if (!range) {
+            return null;
+        }
+        return {
+            startTick: playbackStartTick,
+            endTick: range.endTick
+        } as alphaTab.synth.PlaybackRange;
     }
 
     private updateTempoCursor(currentTick: number): void {
@@ -638,7 +687,7 @@ export class PerformPanel implements Mountable {
         const ticksPerMs = tickDelta / wallDelta;
         const timestamps = new Map<number, number>();
         for (const item of this.session.getExpectedItems()) {
-            if (item.expectedWallTimestampMs === undefined) {
+            if (!item.matched) {
                 timestamps.set(item.startTick, latest.timestampMs + (item.startTick - latest.currentTick) / ticksPerMs);
             }
         }
@@ -669,7 +718,9 @@ export class PerformPanel implements Mountable {
     }
 
     private copyPlaybackRange(range: alphaTab.synth.PlaybackRange | null): alphaTab.synth.PlaybackRange | null {
-        return range ? ({ startTick: range.startTick, endTick: range.endTick } as alphaTab.synth.PlaybackRange) : null;
+        return range && range.endTick > range.startTick
+            ? ({ startTick: range.startTick, endTick: range.endTick } as alphaTab.synth.PlaybackRange)
+            : null;
     }
 
     private updateMidiState(state: MidiInputState): void {
