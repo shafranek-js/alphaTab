@@ -258,6 +258,10 @@ export function selectTempoCursorItem<TBeat extends PracticeBeatSource>(
         return null;
     }
 
+    if (currentTick < queue[0].startTick) {
+        return null;
+    }
+
     let current = queue[0];
     for (const item of queue) {
         if (item.startTick > currentTick) {

@@ -448,7 +448,8 @@ describe('PracticeController', () => {
             const b3 = beatAt([64], 300);
             const queue = buildPracticeQueue([b1, b2, b3]);
 
-            expect(selectTempoCursorItem(queue, 50)?.beat).toBe(b1);
+            expect(selectTempoCursorItem(queue, 50)).toBeNull();
+            expect(selectTempoCursorItem(queue, 100)?.beat).toBe(b1);
             expect(selectTempoCursorItem(queue, 250)?.beat).toBe(b2);
             expect(selectTempoCursorItem(queue, 350)?.beat).toBe(b3);
             expect(selectTempoCursorItem(queue, 350, true)).toBeNull();
@@ -480,6 +481,17 @@ describe('PracticeController', () => {
 
             expect(matched.type).toBe('matched');
             expect(duplicate.type).toBe('ignored');
+            expect(session.getState().correctCount).toBe(1);
+        });
+
+        it('scores notes with known timestamps before future items are projected', () => {
+            const session = performSession([performItem(60, 100, 1000), performItem(62, 200)]);
+
+            const matched = session.handleNoteOn(60, 1000);
+            const future = session.handleNoteOn(62, 1000);
+
+            expect(matched.type).toBe('matched');
+            expect(future.type).toBe('ignored');
             expect(session.getState().correctCount).toBe(1);
         });
 

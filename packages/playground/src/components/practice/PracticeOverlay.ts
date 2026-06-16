@@ -95,6 +95,7 @@ export class PracticeOverlay implements Mountable {
     private pulseGroups: PulseGroup[] = [];
     private _lastItem: PracticeQueueItem<alphaTab.model.Beat> | null = null;
     private _lastFeedback: OverlayFeedback = 'current';
+    private _lastMatchedNotes: number[] = [];
 
     public constructor(
         private api: alphaTab.AlphaTabApi,
@@ -105,11 +106,14 @@ export class PracticeOverlay implements Mountable {
     }
 
     public showItem(item: PracticeQueueItem<alphaTab.model.Beat> | null, matchedNotes: number[] = []): void {
-        if (item === this._lastItem && this._lastFeedback === 'current') {
+        const isSameItem =
+            item === this._lastItem || (item !== null && this._lastItem !== null && item.beat === this._lastItem.beat);
+        if (isSameItem && this._lastFeedback === 'current' && this.areMatchedNotesEqual(matchedNotes)) {
             return;
         }
         this._lastItem = item;
         this._lastFeedback = 'current';
+        this._lastMatchedNotes = [...matchedNotes];
         this.render(item, 'current', matchedNotes);
     }
 
@@ -120,6 +124,8 @@ export class PracticeOverlay implements Mountable {
         }
         this.clearFeedbackTimer = window.setTimeout(() => {
             this.root.replaceChildren();
+            this._lastItem = null;
+            this._lastMatchedNotes = [];
             this.clearFeedbackTimer = null;
         }, 180);
     }
@@ -130,6 +136,7 @@ export class PracticeOverlay implements Mountable {
             this.clearFeedbackTimer = null;
         }
         this._lastItem = null;
+        this._lastMatchedNotes = [];
         this.clearPulseTargets();
         this.root.replaceChildren();
     }
@@ -137,6 +144,13 @@ export class PracticeOverlay implements Mountable {
     public dispose(): void {
         this.clear();
         this.root.remove();
+    }
+
+    private areMatchedNotesEqual(matchedNotes: number[]): boolean {
+        return (
+            matchedNotes.length === this._lastMatchedNotes.length &&
+            matchedNotes.every((note, index) => note === this._lastMatchedNotes[index])
+        );
     }
 
     private render(
