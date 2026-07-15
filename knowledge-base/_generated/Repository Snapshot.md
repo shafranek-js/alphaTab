@@ -2,7 +2,7 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T09:22:19.845Z
+updated: 2026-07-15T09:25:19.201Z
 ---
 
 # Снимок репозитория
@@ -10,13 +10,13 @@ updated: 2026-07-15T09:22:19.845Z
 | Поле | Значение |
 |---|---|
 | Branch | `codex/github-pages` |
-| HEAD | `69e718cb8e7fc460aad4a7449750ed87644ff1e4` |
-| Commit | `69e718cb8e Merge pull request #3 from shafranek-js/codex/refresh-kb-after-merge` |
-| Commit date | `2026-07-15T11:07:05+02:00` |
+| HEAD | `7b77eceea91d271ab30ca52e74a47a7722f435b6` |
+| Commit | `7b77eceea9 feat(playground): deploy app to GitHub Pages` |
+| Commit date | `2026-07-15T11:25:06+02:00` |
 | Origin | `https://github.com/shafranek-js/alphaTab.git` |
 | Tracking branch | — |
 | Ahead / behind tracking |  / ? |
-| Working tree | dirty (16 path(s)) |
+| Working tree | clean |
 
 ## CodeGraph
 
@@ -59,30 +59,7 @@ Files by Language:
   yaml            10
   properties      2
 
-Pending Changes:
-  Added:     4 files
-  Modified:  3 files
-[i] Run "codegraph sync" to update the index
-```
-## Working tree
-
-```text
-M .github/workflows/build.yml
- M .gitignore
- M "knowledge-base/01 Project Overview.md"
- M "knowledge-base/05 Development and Testing.md"
- M "knowledge-base/07 Risks and Open Questions.md"
- M "knowledge-base/Decisions/Decision Log.md"
- M package.json
- M packages/playground/src/components/PlaygroundSidePanel.ts
- M packages/playground/src/util/Paths.ts
-?? .github/workflows/pages.yml
-?? "knowledge-base/Investigations/GitHub Pages Deployment.md"
-?? packages/playground/pages/
-?? packages/playground/test/Paths.test.ts
-?? packages/playground/vite.pages.config.ts
-?? scripts/build-pages.mjs
-?? soundfont/LICENSE
+[OK] Index is up to date
 ```
 
 > Этот снимок не выполняет network fetch и показывает только локально известные refs.

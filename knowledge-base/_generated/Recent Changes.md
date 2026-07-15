@@ -2,13 +2,14 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T09:22:21.986Z
+updated: 2026-07-15T09:25:19.346Z
 ---
 
 # Последние изменения
 
 | Commit | Date | Subject |
 |---|---|---|
+| `7b77ecee` | 2026-07-15 | feat(playground): deploy app to GitHub Pages |
 | `69e718cb` | 2026-07-15 | Merge pull request #3 from shafranek-js/codex/refresh-kb-after-merge |
 | `8808f611` | 2026-07-15 | docs: refresh knowledge snapshot after merge |
 | `32632af6` | 2026-07-15 | Merge pull request #1 from shafranek-js/codex/practice-perform-review-fixes |
@@ -28,6 +29,5 @@ updated: 2026-07-15T09:22:21.986Z
 | `d02167f8` | 2026-06-16 | fix(playground): resolve playhead freeze, audio buzzing, hint flickering, and settings corruption |
 | `b6a8de35` | 2026-06-15 | Fix playground practice playback issues |
 | `e429ece7` | 2026-06-14 | feat(practice): fix step practice MIDI sound & add competitor analysis |
-| `bee55988` | 2026-06-14 | feat(playground): implement Perform Mode with timing scoring, speed scaling, and MIDI input synchronization |
 
 Для причин и последствий изменений используйте Git diff, tests и заметки в [[Investigations/README|Investigations]].
