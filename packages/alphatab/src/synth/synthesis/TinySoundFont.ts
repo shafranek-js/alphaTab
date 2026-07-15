@@ -74,8 +74,8 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         return this._fillWorkingBuffer(buffer, bufferPos, sampleCount);
     }
 
-    public synthesizeSilent(sampleCount: number, killVoices: boolean = true): void {
-        this._fillWorkingBuffer(null, 0, sampleCount, killVoices);
+    public synthesizeSilent(sampleCount: number, killVoices?: boolean): void {
+        this._fillWorkingBuffer(null, 0, sampleCount, killVoices ?? true);
     }
 
     public channelGetMixVolume(channel: number): number {
@@ -240,10 +240,9 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                 break;
             case MidiEventType.NoteOn:
                 const noteOn = e as NoteOnEvent;
-                if (this.silentScorePlayback && !isLive) {
-                    break;
+                if (!this.silentScorePlayback || isLive) {
+                    this.channelNoteOn(noteOn.channel, noteOn.noteKey, noteOn.noteVelocity / 127.0, isLive);
                 }
-                this.channelNoteOn(noteOn.channel, noteOn.noteKey, noteOn.noteVelocity / 127.0, isLive);
                 break;
             case MidiEventType.NoteOff:
                 const noteOff = e as NoteOffEvent;

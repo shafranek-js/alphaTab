@@ -20,9 +20,12 @@ describe('Panning tests', () => {
             const generator = new MidiFileGenerator(score, settings, handler);
             generator.generate();
 
-            const panEvents = midiFile.events.filter(
-                e => e instanceof ControlChangeEvent && e.controller === ControllerType.PanCoarse
-            ) as ControlChangeEvent[];
+            const panEvents: ControlChangeEvent[] = [];
+            for (const event of midiFile.events) {
+                if (event instanceof ControlChangeEvent && event.controller === ControllerType.PanCoarse) {
+                    panEvents.push(event);
+                }
+            }
 
             expect(panEvents.length).toBeGreaterThan(0);
             expect(panEvents[0].value).toBe(expectedMidiPan);

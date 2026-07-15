@@ -192,7 +192,17 @@ describe('GeneralTests', () => {
             Logger.info('Test-color-performance', 'Overhead', i, overhead);
         }
 
-        const medianOverhead = [...overheads].sort((a, b) => a - b)[Math.floor(overheads.length / 2)];
+        const sortedOverheads = overheads.slice();
+        for (let i = 1; i < sortedOverheads.length; i++) {
+            const value = sortedOverheads[i];
+            let position = i - 1;
+            while (position >= 0 && sortedOverheads[position] > value) {
+                sortedOverheads[position + 1] = sortedOverheads[position];
+                position--;
+            }
+            sortedOverheads[position + 1] = value;
+        }
+        const medianOverhead = sortedOverheads[Math.floor(sortedOverheads.length / 2)];
         expect(medianOverhead).toBeLessThan(120);
     });
 

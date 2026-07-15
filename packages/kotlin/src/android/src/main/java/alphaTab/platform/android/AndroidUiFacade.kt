@@ -409,7 +409,12 @@ internal class AndroidUiFacade : IUiFacade<AlphaTabView> {
         return AndroidViewContainer(selection, this::beginInvoke)
     }
 
-    override fun highlightElements(groupId: String, masterBarIndex: Double) {
+    override fun highlightElements(
+        groupId: String,
+        masterBarIndex: Double,
+        duration: Double?,
+        isSustain: Boolean?
+    ) {
     }
 
     override fun getScrollContainer(): IContainer {

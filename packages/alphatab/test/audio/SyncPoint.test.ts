@@ -466,7 +466,7 @@ class EmptyAudioSynthesizer implements IAudioSampleSynthesizer {
         _append: boolean
     ): void {}
     public setupMetronomeChannel(_metronomeChannel: number, _metronomeVolume: number): void {}
-    public synthesizeSilent(_sampleCount: number): void {}
+    public synthesizeSilent(_sampleCount: number, _killVoices?: boolean): void {}
     public dispatchEvent(_synthEvent: SynthEvent): void {}
     public synthesize(_buffer: Float32Array, _bufferPos: number, _ampleCount: number): SynthEvent[] {
         return [];

@@ -339,7 +339,7 @@ export class MidiFileSequencer {
     public fillMidiEventQueueToEndTime(endTime: number) {
         while (this._mainState.currentTime < endTime) {
             if (this._fillMidiEventQueueLimited(endTime - this._mainState.currentTime)) {
-                this._synthesizer.synthesizeSilent(SynthConstants.MicroBufferSize);
+                this._synthesizer.synthesizeSilent(SynthConstants.MicroBufferSize, true);
             }
         }
 
