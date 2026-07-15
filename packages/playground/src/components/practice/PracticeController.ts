@@ -21,16 +21,17 @@ export interface PracticeTickLookup<TBeat extends PracticeBeatSource> {
 }
 
 export interface PracticeQueueItem<TBeat extends PracticeBeatSource = PracticeBeatSource> {
-    beat: TBeat;
+    beats: TBeat[];
     expectedNotes: number[];
-    expectedNoteDetails: PracticeExpectedNote[];
+    expectedNoteDetails: PracticeExpectedNote<TBeat>[];
     startTick: number;
     endTick: number;
 }
 
-export interface PracticeExpectedNote {
+export interface PracticeExpectedNote<TBeat extends PracticeBeatSource = PracticeBeatSource> {
     note: number;
     endTick: number;
+    beats: TBeat[];
 }
 
 export interface PracticeRequiredNote {
@@ -86,7 +87,7 @@ export interface PerformSettings {
 }
 
 export interface PerformExpectedItem<TBeat extends PracticeBeatSource = PracticeBeatSource> {
-    beat: TBeat;
+    sourceItem: PracticeQueueItem<TBeat>;
     pitch: number;
     startTick: number;
     expectedWallTimestampMs?: number;
@@ -177,10 +178,10 @@ export function buildPracticeQueue<TBeat extends PracticeBeatSource>(
         }
 
         const expectedNotes = Array.from(noteEndTicks.keys());
-        const expectedNoteDetails = expectedNotes.map(note => ({ note, endTick: noteEndTicks.get(note)! }));
+        const expectedNoteDetails = expectedNotes.map(note => ({ note, endTick: noteEndTicks.get(note)!, beats: [beat] }));
 
         items.push({
-            beat,
+            beats: [beat],
             expectedNotes,
             expectedNoteDetails,
             startTick,
@@ -189,7 +190,42 @@ export function buildPracticeQueue<TBeat extends PracticeBeatSource>(
         fallbackStartTick++;
     }
 
-    return items.sort((a, b) => a.startTick - b.startTick);
+    const grouped = new Map<number, PracticeQueueItem<TBeat>>();
+    for (const item of items) {
+        const existing = grouped.get(item.startTick);
+        if (!existing) {
+            grouped.set(item.startTick, item);
+            continue;
+        }
+
+        for (const beat of item.beats) {
+            if (!existing.beats.includes(beat)) {
+                existing.beats.push(beat);
+            }
+        }
+        for (const detail of item.expectedNoteDetails) {
+            const existingDetail = existing.expectedNoteDetails.find(candidate => candidate.note === detail.note);
+            if (!existingDetail) {
+                existing.expectedNoteDetails.push({ ...detail, beats: [...detail.beats] });
+                existing.expectedNotes.push(detail.note);
+                continue;
+            }
+
+            existingDetail.endTick = Math.max(existingDetail.endTick, detail.endTick);
+            for (const beat of detail.beats) {
+                if (!existingDetail.beats.includes(beat)) {
+                    existingDetail.beats.push(beat);
+                }
+            }
+        }
+        existing.endTick = Math.max(
+            existing.endTick,
+            item.endTick,
+            ...existing.expectedNoteDetails.map(note => note.endTick)
+        );
+    }
+
+    return Array.from(grouped.values()).sort((a, b) => a.startTick - b.startTick);
 }
 
 function getBeatStartTick<TBeat extends PracticeBeatSource>(
@@ -247,6 +283,22 @@ export function filterPracticeQueueByRange<TBeat extends PracticeBeatSource>(
         return queue;
     }
     return queue.filter(item => item.startTick >= range.startTick && item.startTick < range.endTick);
+}
+
+export function resolvePracticeInputChannel<TBeat extends PracticeBeatSource>(
+    item: PracticeQueueItem<TBeat> | null,
+    inputNote: number,
+    ignoreOctave: boolean,
+    getChannel: (beat: TBeat) => number | undefined,
+    fallbackChannel: number
+): number {
+    const normalizedInput = ignoreOctave ? inputNote % 12 : inputNote;
+    const detail = item?.expectedNoteDetails.find(expected => {
+        const normalizedExpected = ignoreOctave ? expected.note % 12 : expected.note;
+        return normalizedExpected === normalizedInput;
+    });
+    const sourceBeat = detail?.beats[0] ?? item?.beats[0] ?? null;
+    return sourceBeat ? (getChannel(sourceBeat) ?? fallbackChannel) : fallbackChannel;
 }
 
 export function selectTempoCursorItem<TBeat extends PracticeBeatSource>(
@@ -643,7 +695,9 @@ export class PerformSession<TBeat extends PracticeBeatSource = PracticeBeatSourc
 
     public configure(settings: Partial<PerformSettings>): void {
         this.settings = { ...this.settings, ...settings };
-        this.speed = this.settings.startSpeed;
+        if (!this.running) {
+            this.speed = this.settings.startSpeed;
+        }
     }
 
     public start(items: PerformExpectedItem<TBeat>[]): PerformState<TBeat> {

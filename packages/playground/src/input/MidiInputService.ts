@@ -69,6 +69,7 @@ export class MidiInputService {
     private noteCallbacks: Array<(note: MidiNoteInput) => void> = [];
     private noteOffCallbacks: Array<(note: MidiNoteInput) => void> = [];
     private stateCallbacks: Array<(state: MidiInputState) => void> = [];
+    private activeNotesByInput = new Map<string, Map<number, MidiNoteInput>>();
 
     public constructor(private navigatorLike: MidiNavigatorLike | undefined = globalThis.navigator as MidiNavigatorLike | undefined) {}
 
@@ -92,6 +93,10 @@ export class MidiInputService {
     }
 
     public selectInput(id: string | 'all'): void {
+        const deselectedInputIds = Array.from(this.activeNotesByInput.keys()).filter(
+            inputId => !this.isInputSelected(inputId, id)
+        );
+        this.releaseInputNotes(deselectedInputIds);
         this.selectedInputId = id;
         this.attachMessageHandlers();
         this.notifyStateChange();
@@ -152,6 +157,7 @@ export class MidiInputService {
     }
 
     public dispose(): void {
+        this.releaseInputNotes(Array.from(this.activeNotesByInput.keys()));
         if (this.midiAccess) {
             this.midiAccess.onstatechange = null;
         }
@@ -169,7 +175,17 @@ export class MidiInputService {
             return;
         }
 
-        this.inputs = Array.from(this.midiAccess.inputs.values());
+        const previousInputs = this.inputs;
+        const nextInputs = Array.from(this.midiAccess.inputs.values());
+        const nextInputIds = new Set(nextInputs.map(input => input.id));
+        const removedInputIds = previousInputs.filter(input => !nextInputIds.has(input.id)).map(input => input.id);
+        for (const input of previousInputs) {
+            if (!nextInputIds.has(input.id)) {
+                input.onmidimessage = null;
+            }
+        }
+        this.releaseInputNotes(removedInputIds);
+        this.inputs = nextInputs;
         this.enabled = this.inputs.length > 0;
         if (this.selectedInputId !== 'all' && !this.inputs.some(input => input.id === this.selectedInputId)) {
             this.selectedInputId = 'all';
@@ -212,14 +228,67 @@ export class MidiInputService {
         };
 
         if (isNoteOn) {
-            for (const callback of this.noteCallbacks) {
-                callback(note);
+            let activeNotes = this.activeNotesByInput.get(input.id);
+            if (!activeNotes) {
+                activeNotes = new Map<number, MidiNoteInput>();
+                this.activeNotesByInput.set(input.id, activeNotes);
+            }
+            if (activeNotes.has(noteNumber)) {
+                return;
+            }
+            const wasActive = this.isNoteActive(noteNumber);
+            activeNotes.set(noteNumber, note);
+            if (!wasActive) {
+                for (const callback of this.noteCallbacks) {
+                    callback(note);
+                }
             }
         } else {
-            for (const callback of this.noteOffCallbacks) {
-                callback(note);
+            const activeNotes = this.activeNotesByInput.get(input.id);
+            if (!activeNotes?.delete(noteNumber)) {
+                return;
+            }
+            if (activeNotes.size === 0) {
+                this.activeNotesByInput.delete(input.id);
+            }
+            if (!this.isNoteActive(noteNumber)) {
+                for (const callback of this.noteOffCallbacks) {
+                    callback(note);
+                }
             }
         }
+    }
+
+    private releaseInputNotes(inputIds: Iterable<string>): void {
+        for (const inputId of inputIds) {
+            const activeNotes = this.activeNotesByInput.get(inputId);
+            if (!activeNotes) {
+                continue;
+            }
+            this.activeNotesByInput.delete(inputId);
+            for (const note of activeNotes.values()) {
+                if (this.isNoteActive(note.note)) {
+                    continue;
+                }
+                const noteOff = { ...note, velocity: 0, timestampMs: performance.now() };
+                for (const callback of this.noteOffCallbacks) {
+                    callback(noteOff);
+                }
+            }
+        }
+    }
+
+    private isNoteActive(noteNumber: number): boolean {
+        for (const activeNotes of this.activeNotesByInput.values()) {
+            if (activeNotes.has(noteNumber)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private isInputSelected(inputId: string, selection: string | 'all' = this.selectedInputId): boolean {
+        return selection === 'all' || inputId === selection;
     }
 
     private notifyStateChange(): void {
