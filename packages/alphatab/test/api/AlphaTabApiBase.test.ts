@@ -72,8 +72,10 @@ class TestPlayer implements IAlphaSynth {
         this.volumeChanges.push(volume);
     }
 
-    public readonly ready: IEventEmitter = new EventEmitter(() => this.isReady);
-    public readonly readyForPlayback: IEventEmitter = new EventEmitter(() => this.isReadyForPlayback);
+    /** @lateinit */
+    public readonly ready: IEventEmitter;
+    /** @lateinit */
+    public readonly readyForPlayback: IEventEmitter;
     public readonly finished: IEventEmitter = new EventEmitter();
     public readonly soundFontLoaded: IEventEmitter = new EventEmitter();
     public readonly soundFontLoadFailed: IEventEmitterOfT<Error> = new EventEmitterOfT<Error>();
@@ -88,6 +90,11 @@ class TestPlayer implements IAlphaSynth {
         new EventEmitterOfT<MidiEventsPlayedEventArgs>();
     public readonly playbackRangeChanged: IEventEmitterOfT<PlaybackRangeChangedEventArgs> =
         new EventEmitterOfT<PlaybackRangeChangedEventArgs>();
+
+    public constructor() {
+        this.ready = new EventEmitter(() => this.isReady);
+        this.readyForPlayback = new EventEmitter(() => this.isReadyForPlayback);
+    }
 
     public triggerReadyForPlayback(): void {
         this.isReadyForPlayback = true;
