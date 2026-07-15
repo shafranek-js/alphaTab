@@ -200,6 +200,9 @@ internal fun Any?.toDouble(): Double {
     if (this is Double) {
         return this
     }
+    if (this is Float) {
+        return this.toDouble()
+    }
     if (this == null) {
         throw ClassCastException("Cannot cast null to double")
     }

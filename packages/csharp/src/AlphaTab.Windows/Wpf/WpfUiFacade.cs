@@ -315,7 +315,8 @@ namespace AlphaTab.Wpf
         {
         }
 
-        public override void HighlightElements(string groupId, double masterBarIndex)
+        public override void HighlightElements(string groupId, double masterBarIndex,
+            double? duration = null, bool? isSustain = null)
         {
         }
 

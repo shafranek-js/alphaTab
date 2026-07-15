@@ -23,6 +23,18 @@ import { VorbisFile } from '@coderline/alphatab/synth/vorbis/VorbisFile';
 import { TestOutput } from 'test/audio/TestOutput';
 import { TestPlatform } from 'test/TestPlatform';
 
+/** @internal */
+class TestAlphaSynth extends AlphaSynth {
+    // biome-ignore lint/complexity/noUselessConstructor: Native targets need an explicit forwarding constructor.
+    public constructor(output: TestOutput, bufferTimeInMilliseconds: number) {
+        super(output, bufferTimeInMilliseconds);
+    }
+
+    public get testSynthesizer(): TinySoundFont {
+        return this.synthesizer as TinySoundFont;
+    }
+}
+
 describe('AlphaSynthTests', () => {
     it('pcm-generation', async () => {
         const data = await TestPlatform.loadFile('test-data/audio/default.sf2');
@@ -407,7 +419,7 @@ describe('AlphaSynthTests', () => {
         gen.generate();
 
         const testOutput = new TestOutput();
-        const synth = new AlphaSynth(testOutput, 500);
+        const synth = new TestAlphaSynth(testOutput, 500);
         synth.loadSoundFont(data, false);
         synth.loadMidiFile(midi);
 
@@ -419,7 +431,7 @@ describe('AlphaSynthTests', () => {
         testOutput.next();
         
         // Let's verify active voices count > 0
-        const tsf = (synth as any).synthesizer;
+        const tsf = synth.testSynthesizer;
         expect(tsf.activeVoiceCount).toBeGreaterThan(0);
 
         // 3. Perform another seek (timePosition = 2000)
@@ -457,11 +469,11 @@ describe('AlphaSynthTests', () => {
         gen.generate();
 
         const testOutput = new TestOutput();
-        const synth = new AlphaSynth(testOutput, 500);
+        const synth = new TestAlphaSynth(testOutput, 500);
         synth.loadSoundFont(data, false);
         synth.loadMidiFile(midi);
 
-        const tsf = (synth as any).synthesizer;
+        const tsf = synth.testSynthesizer;
 
         // 0. Perform a seek to initialize the channels and presets
         synth.timePosition = 100;
@@ -508,7 +520,7 @@ describe('AlphaSynthTests', () => {
     it('silent-score-playback-keeps-live-notes-audible', async () => {
         const synth = await createReadySynth();
         const output = synth.output as TestOutput;
-        const tsf = (synth as any).synthesizer as TinySoundFont;
+        const tsf = synth.testSynthesizer;
 
         synth.silentScorePlayback = true;
         tsf.dispatchEvent(new SynthEvent(0, new NoteOnEvent(0, 0, 0, 60, 127)));
@@ -539,31 +551,34 @@ describe('AlphaSynthTests', () => {
     });
 });
 
-async function createReadySynth(): Promise<AlphaSynth> {
+/** @internal */
+async function createReadySynth(): Promise<TestAlphaSynth> {
     const data = await TestPlatform.loadFile('test-data/audio/default.sf2');
     const score = ScoreLoader.loadAlphaTex('\\tempo 120 \\instrument 25 . 0.4.4');
     const midi = new MidiFile();
     const gen = new MidiFileGenerator(score, null, new AlphaSynthMidiFileHandler(midi));
     gen.generate();
 
-    const synth = new AlphaSynth(new TestOutput(), 500);
+    const synth = new TestAlphaSynth(new TestOutput(), 500);
     synth.loadSoundFont(data, false);
     synth.loadMidiFile(midi);
     synth.timePosition = 100;
     return synth;
 }
 
+/** @internal */
 function renderBuffers(output: TestOutput, count: number): void {
     for (let i = 0; i < count; i++) {
         output.next();
     }
 }
 
+/** @internal */
 function sampleEnergy(output: TestOutput): number {
     let energy = 0;
     for (const samples of output.samples) {
         for (const sample of samples) {
-            energy += Math.abs(sample);
+            energy += Math.abs(sample as unknown as number);
         }
     }
     return energy;

@@ -9,7 +9,7 @@ import {
 import type { MidiFile } from '@coderline/alphatab/midi/MidiFile';
 import { ScoreLoader } from '@coderline/alphatab/importer/ScoreLoader';
 import { Settings } from '@coderline/alphatab/Settings';
-import type { LogLevel } from '@coderline/alphatab/LogLevel';
+import { LogLevel } from '@coderline/alphatab/LogLevel';
 import type { Score } from '@coderline/alphatab/model/Score';
 import { PlayerMode } from '@coderline/alphatab/PlayerSettings';
 import type { PlaybackRange } from '@coderline/alphatab/synth/PlaybackRange';
@@ -26,11 +26,12 @@ import { PositionChangedEventArgs } from '@coderline/alphatab/synth/PositionChan
 import type { MidiEventsPlayedEventArgs } from '@coderline/alphatab/synth/MidiEventsPlayedEventArgs';
 import { TestUiFacade } from 'test/visualTests/TestUiFacade';
 
+/** @internal */
 class TestPlayer implements IAlphaSynth {
     public isReady: boolean = true;
     public isReadyForPlayback: boolean = false;
     public state: PlayerState = PlayerState.Paused;
-    public logLevel!: LogLevel;
+    public logLevel: LogLevel = LogLevel.None;
     public masterVolume: number = 1;
     public metronomeVolume: number = 0;
     public playbackSpeed: number = 1;
@@ -71,8 +72,10 @@ class TestPlayer implements IAlphaSynth {
         this.volumeChanges.push(volume);
     }
 
-    public readonly ready: IEventEmitter = new EventEmitter(() => this.isReady);
-    public readonly readyForPlayback: IEventEmitter = new EventEmitter(() => this.isReadyForPlayback);
+    /** @lateinit */
+    public readonly ready: IEventEmitter;
+    /** @lateinit */
+    public readonly readyForPlayback: IEventEmitter;
     public readonly finished: IEventEmitter = new EventEmitter();
     public readonly soundFontLoaded: IEventEmitter = new EventEmitter();
     public readonly soundFontLoadFailed: IEventEmitterOfT<Error> = new EventEmitterOfT<Error>();
@@ -87,6 +90,11 @@ class TestPlayer implements IAlphaSynth {
         new EventEmitterOfT<MidiEventsPlayedEventArgs>();
     public readonly playbackRangeChanged: IEventEmitterOfT<PlaybackRangeChangedEventArgs> =
         new EventEmitterOfT<PlaybackRangeChangedEventArgs>();
+
+    public constructor() {
+        this.ready = new EventEmitter(() => this.isReady);
+        this.readyForPlayback = new EventEmitter(() => this.isReadyForPlayback);
+    }
 
     public triggerReadyForPlayback(): void {
         this.isReadyForPlayback = true;
@@ -114,6 +122,6 @@ describe('AlphaTabApiBase', () => {
         await promise;
         player.triggerReadyForPlayback();
 
-        expect(player.volumeChanges).toEqual([]);
+        expect(player.volumeChanges.length).toBe(0);
     });
 });

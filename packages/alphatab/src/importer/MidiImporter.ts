@@ -14,76 +14,105 @@ import { Staff } from '@coderline/alphatab/model/Staff';
 import { Track } from '@coderline/alphatab/model/Track';
 import { Voice } from '@coderline/alphatab/model/Voice';
 
-interface MidiTempoChange {
-    tick: number;
-    beatsPerMinute: number;
+/** @internal */
+class MidiTempoChange {
+    public constructor(
+        public tick: number,
+        public beatsPerMinute: number
+    ) {}
 }
 
-interface MidiTimeSignatureChange {
-    tick: number;
-    numerator: number;
-    denominator: number;
+/** @internal */
+class MidiTimeSignatureChange {
+    public constructor(
+        public tick: number,
+        public numerator: number,
+        public denominator: number
+    ) {}
 }
 
-interface MidiProgramChange {
-    tick: number;
-    track: number;
-    channel: number;
-    program: number;
+/** @internal */
+class MidiProgramChange {
+    public constructor(
+        public tick: number,
+        public track: number,
+        public channel: number,
+        public program: number
+    ) {}
 }
 
-interface MidiTrackName {
-    track: number;
-    name: string;
+/** @internal */
+class MidiTrackName {
+    public constructor(
+        public track: number,
+        public name: string
+    ) {}
 }
 
-interface MidiNoteSegment {
-    sourceTrack: number;
-    channel: number;
-    key: number;
-    velocity: number;
-    start: number;
-    end: number;
+/** @internal */
+class MidiNoteSegment {
+    public constructor(
+        public sourceTrack: number,
+        public channel: number,
+        public key: number,
+        public velocity: number,
+        public start: number,
+        public end: number
+    ) {}
 }
 
-interface ImportedMidi {
-    division: number;
-    notes: MidiNoteSegment[];
-    tempoChanges: MidiTempoChange[];
-    timeSignatureChanges: MidiTimeSignatureChange[];
-    programChanges: MidiProgramChange[];
-    trackNames: MidiTrackName[];
+/** @internal */
+class ImportedMidi {
+    public notes: MidiNoteSegment[] = [];
+    public tempoChanges: MidiTempoChange[] = [];
+    public timeSignatureChanges: MidiTimeSignatureChange[] = [];
+    public programChanges: MidiProgramChange[] = [];
+    public trackNames: MidiTrackName[] = [];
+
+    public constructor(public division: number) {}
 }
 
-interface ActiveMidiNote {
-    sourceTrack: number;
-    channel: number;
-    key: number;
-    velocity: number;
-    start: number;
+/** @internal */
+class ActiveMidiNote {
+    public constructor(
+        public sourceTrack: number,
+        public channel: number,
+        public key: number,
+        public velocity: number,
+        public start: number
+    ) {}
 }
 
-interface ScoreTrackInfo {
-    key: string;
-    sourceTrack: number;
-    channel: number;
-    name: string;
-    program: number;
-    notes: MidiNoteSegment[];
-    previousSplitNotes: Map<number, Note>;
+/** @internal */
+class ScoreTrackInfo {
+    public notes: MidiNoteSegment[] = [];
+    public previousSplitNotes: Map<number, Note> = new Map<number, Note>();
+
+    public constructor(
+        public sourceTrack: number,
+        public channel: number,
+        public name: string,
+        public program: number
+    ) {}
 }
 
-interface BarInfo {
-    start: number;
-    end: number;
-    numerator: number;
-    denominator: number;
+/** @internal */
+class BarInfo {
+    public constructor(
+        public start: number,
+        public end: number,
+        public numerator: number,
+        public denominator: number
+    ) {}
 }
 
-interface BeatDurationInfo {
-    duration: Duration;
-    dots: number;
-    ticks: number;
+/** @internal */
+class BeatDurationInfo {
+    public constructor(
+        public duration: Duration,
+        public dots: number,
+        public ticks: number
+    ) {}
 }
 
 /**
@@ -132,20 +161,15 @@ export class MidiImporter extends ScoreImporter {
             this.data.skip(headerLength - 6);
         }
 
-        const midi: ImportedMidi = {
-            division,
-            notes: [],
-            tempoChanges: [{ tick: 0, beatsPerMinute: MidiImporter._defaultTempo }],
-            timeSignatureChanges: [
-                {
-                    tick: 0,
-                    numerator: MidiImporter._defaultTimeSignatureNumerator,
-                    denominator: MidiImporter._defaultTimeSignatureDenominator
-                }
-            ],
-            programChanges: [],
-            trackNames: []
-        };
+        const midi = new ImportedMidi(division);
+        midi.tempoChanges.push(new MidiTempoChange(0, MidiImporter._defaultTempo));
+        midi.timeSignatureChanges.push(
+            new MidiTimeSignatureChange(
+                0,
+                MidiImporter._defaultTimeSignatureNumerator,
+                MidiImporter._defaultTimeSignatureDenominator
+            )
+        );
 
         for (let trackIndex = 0; trackIndex < trackCount && this.data.position < this.data.length; trackIndex++) {
             const chunkId = MidiImporter._readFourCc(this.data);
@@ -157,7 +181,14 @@ export class MidiImporter extends ScoreImporter {
             this.data.position = chunkEnd;
         }
 
-        midi.notes.sort((a, b) => a.start - b.start || a.sourceTrack - b.sourceTrack || a.channel - b.channel);
+        midi.notes.sort((a, b) => {
+            const startComparison = a.start - b.start;
+            if (startComparison !== 0) {
+                return startComparison;
+            }
+            const trackComparison = a.sourceTrack - b.sourceTrack;
+            return trackComparison !== 0 ? trackComparison : a.channel - b.channel;
+        });
         midi.tempoChanges.sort((a, b) => a.tick - b.tick);
         midi.timeSignatureChanges.sort((a, b) => a.tick - b.tick);
         return midi;
@@ -223,7 +254,7 @@ export class MidiImporter extends ScoreImporter {
                             notes = [];
                             activeNotes.set(activeKey, notes);
                         }
-                        notes.push({ sourceTrack: trackIndex, channel, key, velocity, start: tick });
+                        notes.push(new ActiveMidiNote(trackIndex, channel, key, velocity, tick));
                     }
                     break;
                 }
@@ -233,12 +264,9 @@ export class MidiImporter extends ScoreImporter {
                     this.data.skip(2);
                     break;
                 case 0xc0:
-                    midi.programChanges.push({
-                        tick,
-                        track: trackIndex,
-                        channel,
-                        program: this.data.readByte()
-                    });
+                    midi.programChanges.push(
+                        new MidiProgramChange(tick, trackIndex, channel, this.data.readByte())
+                    );
                     break;
                 case 0xd0:
                     this.data.skip(1);
@@ -251,14 +279,16 @@ export class MidiImporter extends ScoreImporter {
         for (const notes of activeNotes.values()) {
             for (const note of notes) {
                 if (tick > note.start) {
-                    midi.notes.push({
-                        sourceTrack: note.sourceTrack,
-                        channel: note.channel,
-                        key: note.key,
-                        velocity: note.velocity,
-                        start: note.start,
-                        end: tick
-                    });
+                    midi.notes.push(
+                        new MidiNoteSegment(
+                            note.sourceTrack,
+                            note.channel,
+                            note.key,
+                            note.velocity,
+                            note.start,
+                            tick
+                        )
+                    );
                 }
             }
         }
@@ -275,7 +305,7 @@ export class MidiImporter extends ScoreImporter {
             case 0x03: {
                 const name = IOHelper.toString(IOHelper.readByteArray(this.data, length), 'utf-8').trim();
                 if (name.length > 0) {
-                    midi.trackNames.push({ track: trackIndex, name });
+                    midi.trackNames.push(new MidiTrackName(trackIndex, name));
                 }
                 break;
             }
@@ -284,10 +314,7 @@ export class MidiImporter extends ScoreImporter {
                     const microSecondsPerQuarterNote =
                         (this.data.readByte() << 16) | (this.data.readByte() << 8) | this.data.readByte();
                     if (microSecondsPerQuarterNote > 0) {
-                        midi.tempoChanges.push({
-                            tick,
-                            beatsPerMinute: 60000000 / microSecondsPerQuarterNote
-                        });
+                        midi.tempoChanges.push(new MidiTempoChange(tick, 60000000 / microSecondsPerQuarterNote));
                     }
                 } else {
                     this.data.skip(length);
@@ -298,7 +325,7 @@ export class MidiImporter extends ScoreImporter {
                     const numerator = this.data.readByte();
                     const denominator = 1 << this.data.readByte();
                     if (numerator > 0 && denominator > 0) {
-                        midi.timeSignatureChanges.push({ tick, numerator, denominator });
+                        midi.timeSignatureChanges.push(new MidiTimeSignatureChange(tick, numerator, denominator));
                     }
                     if (length > 2) {
                         this.data.skip(length - 2);
@@ -330,14 +357,7 @@ export class MidiImporter extends ScoreImporter {
 
         const note = notes.shift()!;
         if (tick > note.start) {
-            midi.notes.push({
-                sourceTrack: note.sourceTrack,
-                channel,
-                key,
-                velocity: note.velocity,
-                start: note.start,
-                end: tick
-            });
+            midi.notes.push(new MidiNoteSegment(note.sourceTrack, channel, key, note.velocity, note.start, tick));
         }
         if (notes.length === 0) {
             activeNotes.delete(activeKey);
@@ -349,44 +369,58 @@ export class MidiImporter extends ScoreImporter {
         score.title = 'Imported MIDI';
 
         const tickScale = MidiUtils.QuarterTime / midi.division;
-        const notes = midi.notes.map(n => ({
-            sourceTrack: n.sourceTrack,
-            channel: n.channel,
-            key: n.key,
-            velocity: n.velocity,
-            start: Math.max(0, Math.round(n.start * tickScale)),
-            end: Math.max(0, Math.round(n.end * tickScale))
-        }));
-        const tempoChanges = midi.tempoChanges.map(t => ({
-            tick: Math.max(0, Math.round(t.tick * tickScale)),
-            beatsPerMinute: t.beatsPerMinute
-        }));
-        const timeSignatureChanges = midi.timeSignatureChanges.map(t => ({
-            tick: Math.max(0, Math.round(t.tick * tickScale)),
-            numerator: t.numerator,
-            denominator: t.denominator
-        }));
-        const programChanges = midi.programChanges.map(p => ({
-            tick: Math.max(0, Math.round(p.tick * tickScale)),
-            track: p.track,
-            channel: p.channel,
-            program: p.program
-        }));
+        const notes: MidiNoteSegment[] = [];
+        for (const note of midi.notes) {
+            notes.push(
+                new MidiNoteSegment(
+                    note.sourceTrack,
+                    note.channel,
+                    note.key,
+                    note.velocity,
+                    Math.max(0, Math.round(note.start * tickScale)),
+                    Math.max(0, Math.round(note.end * tickScale))
+                )
+            );
+        }
+        const tempoChanges: MidiTempoChange[] = [];
+        for (const tempo of midi.tempoChanges) {
+            tempoChanges.push(
+                new MidiTempoChange(Math.max(0, Math.round(tempo.tick * tickScale)), tempo.beatsPerMinute)
+            );
+        }
+        const timeSignatureChanges: MidiTimeSignatureChange[] = [];
+        for (const timeSignature of midi.timeSignatureChanges) {
+            timeSignatureChanges.push(
+                new MidiTimeSignatureChange(
+                    Math.max(0, Math.round(timeSignature.tick * tickScale)),
+                    timeSignature.numerator,
+                    timeSignature.denominator
+                )
+            );
+        }
+        const programChanges: MidiProgramChange[] = [];
+        for (const program of midi.programChanges) {
+            programChanges.push(
+                new MidiProgramChange(
+                    Math.max(0, Math.round(program.tick * tickScale)),
+                    program.track,
+                    program.channel,
+                    program.program
+                )
+            );
+        }
 
-        const maxEnd = Math.max(MidiUtils.QuarterTime * 4, ...notes.map(n => n.end));
+        let maxEnd = MidiUtils.QuarterTime * 4;
+        for (const note of notes) {
+            if (note.end > maxEnd) {
+                maxEnd = note.end;
+            }
+        }
         const bars = this._createMasterBars(score, maxEnd, timeSignatureChanges, tempoChanges);
         const tracks = this._createTracks(notes, programChanges, midi.trackNames);
 
         if (tracks.length === 0) {
-            tracks.push({
-                key: '0:0',
-                sourceTrack: 0,
-                channel: 0,
-                name: 'Track 1',
-                program: 0,
-                notes: [],
-                previousSplitNotes: new Map<number, Note>()
-            });
+            tracks.push(new ScoreTrackInfo(0, 0, 'Track 1', 0));
         }
 
         for (const trackInfo of tracks) {
@@ -426,12 +460,9 @@ export class MidiImporter extends ScoreImporter {
             masterBar.timeSignatureDenominator = timeSignature.denominator;
             score.addMasterBar(masterBar);
 
-            bars.push({
-                start: tick,
-                end: tick + barDuration,
-                numerator: timeSignature.numerator,
-                denominator: timeSignature.denominator
-            });
+            bars.push(
+                new BarInfo(tick, tick + barDuration, timeSignature.numerator, timeSignature.denominator)
+            );
 
             for (const tempo of tempoChanges) {
                 if (tempo.tick >= tick && tempo.tick < tick + barDuration) {
@@ -467,28 +498,31 @@ export class MidiImporter extends ScoreImporter {
             let trackInfo = tracks.get(key);
             if (!trackInfo) {
                 const program = MidiImporter._findProgramAt(programChanges, note.sourceTrack, note.channel, note.start);
-                trackInfo = {
-                    key,
-                    sourceTrack: note.sourceTrack,
-                    channel: note.channel,
-                    name: this._getTrackName(trackNames, note.sourceTrack, note.channel, tracks.size),
-                    program,
-                    notes: [],
-                    previousSplitNotes: new Map<number, Note>()
-                };
+                trackInfo = new ScoreTrackInfo(
+                    note.sourceTrack,
+                    note.channel,
+                    this._getTrackName(trackNames, note.sourceTrack, note.channel, tracks.size),
+                    program
+                );
                 tracks.set(key, trackInfo);
             }
             trackInfo.notes.push(note);
         }
 
         const result = Array.from(tracks.values());
-        result.sort((a, b) => a.sourceTrack - b.sourceTrack || a.channel - b.channel);
+        result.sort((a, b) => {
+            const trackComparison = a.sourceTrack - b.sourceTrack;
+            return trackComparison !== 0 ? trackComparison : a.channel - b.channel;
+        });
         return result;
     }
 
     private _createBarsForTrack(staff: Staff, bars: BarInfo[], trackInfo: ScoreTrackInfo): void {
         const notes = trackInfo.notes.slice();
-        notes.sort((a, b) => a.start - b.start || a.key - b.key);
+        notes.sort((a, b) => {
+            const startComparison = a.start - b.start;
+            return startComparison !== 0 ? startComparison : a.key - b.key;
+        });
 
         for (const barInfo of bars) {
             const bar = new Bar();
@@ -519,14 +553,20 @@ export class MidiImporter extends ScoreImporter {
             group.push(note);
         }
 
-        const starts = Array.from(groupedNotes.keys()).sort((a, b) => a - b);
+        const starts = Array.from(groupedNotes.keys());
+        MidiImporter._sortNumbers(starts);
         for (const start of starts) {
             if (start > cursor) {
                 this._addBeat(voice, start - cursor, []);
             }
 
             const group = groupedNotes.get(start)!;
-            const end = Math.min(barInfo.end, ...group.map(n => n.end));
+            let end = barInfo.end;
+            for (const note of group) {
+                if (note.end < end) {
+                    end = note.end;
+                }
+            }
             const duration = Math.max(1, end - start);
             const beat = this._addBeat(voice, duration, group);
             for (const noteSegment of group) {
@@ -639,9 +679,9 @@ export class MidiImporter extends ScoreImporter {
         ];
         for (const duration of durations) {
             const baseTicks = MidiUtils.toTicks(duration);
-            candidates.push({ duration, dots: 0, ticks: baseTicks });
-            candidates.push({ duration, dots: 1, ticks: MidiUtils.applyDot(baseTicks, false) });
-            candidates.push({ duration, dots: 2, ticks: MidiUtils.applyDot(baseTicks, true) });
+            candidates.push(new BeatDurationInfo(duration, 0, baseTicks));
+            candidates.push(new BeatDurationInfo(duration, 1, MidiUtils.applyDot(baseTicks, false)));
+            candidates.push(new BeatDurationInfo(duration, 2, MidiUtils.applyDot(baseTicks, true)));
         }
 
         let best = candidates[0];
@@ -658,7 +698,24 @@ export class MidiImporter extends ScoreImporter {
     }
 
     private static _readFourCc(data: IReadable): string {
-        return String.fromCharCode(data.readByte(), data.readByte(), data.readByte(), data.readByte());
+        return (
+            String.fromCharCode(data.readByte()) +
+            String.fromCharCode(data.readByte()) +
+            String.fromCharCode(data.readByte()) +
+            String.fromCharCode(data.readByte())
+        );
+    }
+
+    private static _sortNumbers(values: number[]): void {
+        for (let i = 1; i < values.length; i++) {
+            const value = values[i];
+            let position = i - 1;
+            while (position >= 0 && values[position] > value) {
+                values[position + 1] = values[position];
+                position--;
+            }
+            values[position + 1] = value;
+        }
     }
 
     private static _readVariableInt(data: IReadable): number {
