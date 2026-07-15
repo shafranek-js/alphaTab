@@ -1,7 +1,7 @@
 ---
 type: risk-register
 status: active
-updated: 2026-07-14
+updated: 2026-07-15
 tags:
   - risks
   - questions
@@ -50,6 +50,12 @@ Session-defining controls заблокированы во время прохо�
 ### Недостаток интеграционных тестов
 
 State machines хорошо покрыты unit tests, но реальные browser timing, AudioWorklet, MIDI devices и DOM overlays требуют ручных или browser-level сценариев.
+
+### Публичная GitHub Pages сборка
+
+Pages поставляет крупный статический artifact с FluidR3 и runtime worker/worklet bundles. Риски: незаметная поломка subpath URL, превышение лимитов artifact, длительная первая загрузка SoundFont и расхождение лицензий с фактически поставляемыми assets.
+
+Текущие защиты: base path задаётся `configure-pages`, CI собирает Pages artifact, production smoke test проверяет renderer/player readiness, а artifact включает MPL-2.0 и FluidR3 MIT license. Web MIDI работает только в secure context и всё равно требует разрешения пользователя и ручной проверки с физическим устройством.
 
 ### Локальные historical notes
 

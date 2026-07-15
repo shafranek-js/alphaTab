@@ -1,7 +1,7 @@
 ---
 type: engineering
 status: verified
-updated: 2026-07-14
+updated: 2026-07-15
 tags:
   - development
   - testing
@@ -20,6 +20,7 @@ npm run lint
 npm run test --workspace=packages/playground
 npm run test --workspace=packages/alphatab
 npm run build-web
+npm run build-pages
 npm run build-csharp
 npm run build-kotlin
 npm run kb:update
@@ -44,6 +45,12 @@ Vite 8 требует Node.js 20.19+ или 22.12+. Локальный Node 20.1
 - C# build/tests на .NET 8;
 - Kotlin build/tests через Gradle.
 
+`.github/workflows/pages.yml` собирает alphaTab web package, затем публичный `ControlApp`, загружает `packages/playground/dist-pages` как Pages artifact и разворачивает его из ветки `develop`. Base path берётся из `actions/configure-pages`, поэтому asset URL работают под `/alphaTab/`.
+
+Публичная сборка использует отдельный `packages/playground/vite.pages.config.ts` со штатным alphaTab Vite plugin. Плагин обязан обработать renderer Web Worker и AlphaSynth Web Worker/AudioWorklet; обычная Vite-сборка интерфейса без него внешне загружает score, но не завершает rendering/player initialization. Подробности: [[Investigations/GitHub Pages Deployment]].
+
+`scripts/build-pages.mjs` добавляет в artifact Bravura, FluidR3, стартовую партитуру, `.nojekyll` и лицензии alphaTab/FluidR3. Перед `npm run build-pages` должен быть собран `packages/alphatab/dist`; Pages workflow гарантирует это командой `npm run build`.
+
 ## Пропорциональная проверка изменений
 
 | Область изменения | Минимальная проверка |
@@ -55,6 +62,7 @@ Vite 8 требует Node.js 20.19+ или 22.12+. Локальный Node 20.1
 | Synth/player | audio tests + browser playback, seek, loop, live note и cleanup scenarios |
 | Transpiler/shared TS | transpiler fixtures, затем C# и Kotlin build/tests |
 | Bundler/platform | соответствующий Vite/Webpack build и worker/worklet smoke test |
+| GitHub Pages | `PAGES_BASE_PATH=/alphaTab/ npm run build-pages`, static preview, score render, player ready, Play/Stop и отсутствие browser errors |
 
 ## Windows caveats
 

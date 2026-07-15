@@ -39,6 +39,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build-web
+      - run: npm run build-pages
       - run: npm run test-web
       - run: npm run build-language-server
       - run: npm run build-monaco
