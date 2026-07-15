@@ -49,7 +49,7 @@ Vite 8 требует Node.js 20.19+ или 22.12+. Локальный Node 20.1
 
 Публичная сборка использует отдельный `packages/playground/vite.pages.config.ts` со штатным alphaTab Vite plugin. Плагин обязан обработать renderer Web Worker и AlphaSynth Web Worker/AudioWorklet; обычная Vite-сборка интерфейса без него внешне загружает score, но не завершает rendering/player initialization. Подробности: [[Investigations/GitHub Pages Deployment]].
 
-`scripts/build-pages.mjs` добавляет в artifact Bravura, FluidR3, стартовую партитуру, `.nojekyll` и лицензии alphaTab/FluidR3. Перед `npm run build-pages` должен быть собран `packages/alphatab/dist`; Pages workflow гарантирует это командой `npm run build`.
+`scripts/build-pages.mjs` добавляет в artifact Bravura, FluidR3, стартовую партитуру, `.nojekyll` и лицензии alphaTab/FluidR3. Перед `npm run build-pages` должны быть собраны `packages/alphatab/dist` и `packages/vite/dist`; Pages workflow гарантирует это командами `npm run build` и `npm run build-vite`.
 
 ## Пропорциональная проверка изменений
 

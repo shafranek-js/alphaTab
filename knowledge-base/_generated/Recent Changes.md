@@ -2,13 +2,15 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T09:25:19.346Z
+updated: 2026-07-15T09:33:53.073Z
 ---
 
 # Последние изменения
 
 | Commit | Date | Subject |
 |---|---|---|
+| `c4812965` | 2026-07-15 | Merge pull request #4 from shafranek-js/codex/github-pages |
+| `75fff1a0` | 2026-07-15 | docs: refresh knowledge snapshot for Pages |
 | `7b77ecee` | 2026-07-15 | feat(playground): deploy app to GitHub Pages |
 | `69e718cb` | 2026-07-15 | Merge pull request #3 from shafranek-js/codex/refresh-kb-after-merge |
 | `8808f611` | 2026-07-15 | docs: refresh knowledge snapshot after merge |
@@ -27,7 +29,5 @@ updated: 2026-07-15T09:25:19.346Z
 | `804957c1` | 2026-07-15 | fix(playground): harden practice, perform, and MIDI lifecycle |
 | `371edb10` | 2026-06-16 | Fix perform overlay cursor stability |
 | `d02167f8` | 2026-06-16 | fix(playground): resolve playhead freeze, audio buzzing, hint flickering, and settings corruption |
-| `b6a8de35` | 2026-06-15 | Fix playground practice playback issues |
-| `e429ece7` | 2026-06-14 | feat(practice): fix step practice MIDI sound & add competitor analysis |
 
 Для причин и последствий изменений используйте Git diff, tests и заметки в [[Investigations/README|Investigations]].
