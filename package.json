@@ -17,6 +17,9 @@
         "build-language-server": "npm run build --workspace=packages/lsp",
         "dev-language-server": "npm run dev --workspace=packages/lsp",
 
+        "kb:update": "node scripts/update-knowledge-base.mjs",
+        "kb:check": "node scripts/update-knowledge-base.mjs --check",
+
         "update-version": "node scripts/update-version.mjs",
 
         "generate-typescript": "npm run generate-typescript --workspace=packages/alphatab",
