@@ -153,7 +153,8 @@ public abstract class ManagedUiFacade<TSettings> : IUiFacade<TSettings>
     }
 
     public abstract void RemoveHighlights();
-    public abstract void HighlightElements(string groupId, double masterBarIndex);
+    public abstract void HighlightElements(string groupId, double masterBarIndex,
+        double? duration = null, bool? isSustain = null);
     public abstract IContainer? CreateSelectionElement();
     public abstract IContainer GetScrollContainer();
     public abstract Bounds GetOffset(IContainer? scrollElement, IContainer container);

@@ -74,8 +74,8 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         return this._fillWorkingBuffer(buffer, bufferPos, sampleCount);
     }
 
-    public synthesizeSilent(sampleCount: number, killVoices: boolean = true): void {
-        this._fillWorkingBuffer(null, 0, sampleCount, killVoices);
+    public synthesizeSilent(sampleCount: number, killVoices?: boolean): void {
+        this._fillWorkingBuffer(null, 0, sampleCount, killVoices ?? true);
     }
 
     public channelGetMixVolume(channel: number): number {

@@ -246,7 +246,12 @@ export class TestUiFacade implements IUiFacade<unknown> {
 
     public removeHighlights(): void {}
 
-    public highlightElements(_groupId: string, _masterBarIndex: number): void {}
+    public highlightElements(
+        _groupId: string,
+        _masterBarIndex: number,
+        _duration?: number,
+        _isSustain?: boolean
+    ): void {}
 
     public createSelectionElement(): IContainer | null {
         return new TestUiContainer();
