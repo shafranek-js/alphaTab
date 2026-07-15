@@ -2,21 +2,21 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T09:35:28.854Z
+updated: 2026-07-15T09:42:20.549Z
 ---
 
 # Снимок репозитория
 
 | Поле | Значение |
 |---|---|
-| Branch | `codex/fix-pages-ci` |
-| HEAD | `9ce9219cbaa80286354dabbf61e97d9854af577d` |
-| Commit | `9ce9219cba fix(ci): build Vite plugin before Pages app` |
-| Commit date | `2026-07-15T11:35:15+02:00` |
+| Branch | `codex/refresh-kb-after-pages-deploy` |
+| HEAD | `bbdcd543a87b24c319ef55875b1b2407a8aa63e4` |
+| Commit | `bbdcd543a8 Merge pull request #5 from shafranek-js/codex/fix-pages-ci` |
+| Commit date | `2026-07-15T11:39:35+02:00` |
 | Origin | `https://github.com/shafranek-js/alphaTab.git` |
 | Tracking branch | — |
 | Ahead / behind tracking |  / ? |
-| Working tree | clean |
+| Working tree | dirty (1 path(s)) |
 
 ## CodeGraph
 
@@ -60,6 +60,11 @@ Files by Language:
   properties      2
 
 [OK] Index is up to date
+```
+## Working tree
+
+```text
+M "knowledge-base/Investigations/GitHub Pages Deployment.md"
 ```
 
 > Этот снимок не выполняет network fetch и показывает только локально известные refs.

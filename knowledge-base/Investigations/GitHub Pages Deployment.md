@@ -40,4 +40,6 @@ Production preview под `http://127.0.0.1:4173/alphaTab/` подтвердил
 
 Встроенный Browser оставил Web Audio `AudioContext` в `suspended`, поэтому слышимый звук и продвижение позиции должны дополнительно проверяться в обычном пользовательском браузере. Это не заменяет ручной smoke test Web MIDI с физическим устройством.
 
+После merge workflow `Deploy GitHub Pages` успешно собрал и развернул artifact. Проверка `https://shafranek-js.github.io/alphaTab/` подтвердила те же runtime-инварианты: base path `/alphaTab/`, четыре SVG surface, готовый player, переходы Play → `Playing` и Stop → `Idle`, отсутствие warning/error в browser log.
+
 Связанные заметки: [[05 Development and Testing]], [[07 Risks and Open Questions]], [[Decisions/Decision Log]].
