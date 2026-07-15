@@ -240,10 +240,9 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                 break;
             case MidiEventType.NoteOn:
                 const noteOn = e as NoteOnEvent;
-                if (this.silentScorePlayback && !isLive) {
-                    break;
+                if (!this.silentScorePlayback || isLive) {
+                    this.channelNoteOn(noteOn.channel, noteOn.noteKey, noteOn.noteVelocity / 127.0, isLive);
                 }
-                this.channelNoteOn(noteOn.channel, noteOn.noteKey, noteOn.noteVelocity / 127.0, isLive);
                 break;
             case MidiEventType.NoteOff:
                 const noteOff = e as NoteOffEvent;

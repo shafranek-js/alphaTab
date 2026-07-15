@@ -2480,7 +2480,13 @@ export class AlphaTabApiBase<TSettings> {
                 for (const highlight of beatsToHighlight) {
                     const hBeat = highlight.beat;
                     const className: string = BeatContainerGlyph.getGroupId(hBeat);
-                    const isSustain = hBeat.notes.length > 0 && hBeat.notes.every(n => n.isTieDestination);
+                    let isSustain = hBeat.notes.length > 0;
+                    for (const note of hBeat.notes) {
+                        if (!note.isTieDestination) {
+                            isSustain = false;
+                            break;
+                        }
+                    }
 
                     let highlightDuration = duration;
                     if (!isSustain && hBeat.playbackDuration > 0) {
