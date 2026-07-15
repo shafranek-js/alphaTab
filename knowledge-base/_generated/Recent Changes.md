@@ -2,13 +2,16 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T09:35:29.002Z
+updated: 2026-07-15T09:42:33.281Z
 ---
 
 # Последние изменения
 
 | Commit | Date | Subject |
 |---|---|---|
+| `6ad1469b` | 2026-07-15 | docs: record successful Pages deployment |
+| `bbdcd543` | 2026-07-15 | Merge pull request #5 from shafranek-js/codex/fix-pages-ci |
+| `08e621e0` | 2026-07-15 | docs: refresh knowledge snapshot after Pages CI fix |
 | `9ce9219c` | 2026-07-15 | fix(ci): build Vite plugin before Pages app |
 | `c4812965` | 2026-07-15 | Merge pull request #4 from shafranek-js/codex/github-pages |
 | `75fff1a0` | 2026-07-15 | docs: refresh knowledge snapshot for Pages |
@@ -26,8 +29,5 @@ updated: 2026-07-15T09:35:29.002Z
 | `e271fe61` | 2026-07-15 | fix(transpiler): avoid unsupported native constructs |
 | `b7455968` | 2026-07-15 | fix(ci): align native interface implementations |
 | `281e5338` | 2026-07-15 | fix(ci): restore baseline build checks |
-| `ccfd1bcd` | 2026-07-15 | docs: add maintainable project knowledge base |
-| `804957c1` | 2026-07-15 | fix(playground): harden practice, perform, and MIDI lifecycle |
-| `371edb10` | 2026-06-16 | Fix perform overlay cursor stability |
 
 Для причин и последствий изменений используйте Git diff, tests и заметки в [[Investigations/README|Investigations]].
