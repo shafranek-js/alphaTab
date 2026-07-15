@@ -2,13 +2,14 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T09:33:53.073Z
+updated: 2026-07-15T09:35:29.002Z
 ---
 
 # Последние изменения
 
 | Commit | Date | Subject |
 |---|---|---|
+| `9ce9219c` | 2026-07-15 | fix(ci): build Vite plugin before Pages app |
 | `c4812965` | 2026-07-15 | Merge pull request #4 from shafranek-js/codex/github-pages |
 | `75fff1a0` | 2026-07-15 | docs: refresh knowledge snapshot for Pages |
 | `7b77ecee` | 2026-07-15 | feat(playground): deploy app to GitHub Pages |
@@ -28,6 +29,5 @@ updated: 2026-07-15T09:33:53.073Z
 | `ccfd1bcd` | 2026-07-15 | docs: add maintainable project knowledge base |
 | `804957c1` | 2026-07-15 | fix(playground): harden practice, perform, and MIDI lifecycle |
 | `371edb10` | 2026-06-16 | Fix perform overlay cursor stability |
-| `d02167f8` | 2026-06-16 | fix(playground): resolve playhead freeze, audio buzzing, hint flickering, and settings corruption |
 
 Для причин и последствий изменений используйте Git diff, tests и заметки в [[Investigations/README|Investigations]].

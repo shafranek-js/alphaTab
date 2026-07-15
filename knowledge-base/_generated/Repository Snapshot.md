@@ -2,7 +2,7 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T09:33:52.908Z
+updated: 2026-07-15T09:35:28.854Z
 ---
 
 # Снимок репозитория
@@ -10,13 +10,13 @@ updated: 2026-07-15T09:33:52.908Z
 | Поле | Значение |
 |---|---|
 | Branch | `codex/fix-pages-ci` |
-| HEAD | `c48129651b208dc8c9e4812b0deec6325d31df30` |
-| Commit | `c48129651b Merge pull request #4 from shafranek-js/codex/github-pages` |
-| Commit date | `2026-07-15T11:30:07+02:00` |
+| HEAD | `9ce9219cbaa80286354dabbf61e97d9854af577d` |
+| Commit | `9ce9219cba fix(ci): build Vite plugin before Pages app` |
+| Commit date | `2026-07-15T11:35:15+02:00` |
 | Origin | `https://github.com/shafranek-js/alphaTab.git` |
 | Tracking branch | — |
 | Ahead / behind tracking |  / ? |
-| Working tree | dirty (3 path(s)) |
+| Working tree | clean |
 
 ## CodeGraph
 
@@ -59,16 +59,7 @@ Files by Language:
   yaml            10
   properties      2
 
-Pending Changes:
-  Added:     1 files
-[i] Run "codegraph sync" to update the index
-```
-## Working tree
-
-```text
-M .github/workflows/pages.yml
- M "knowledge-base/05 Development and Testing.md"
- M "knowledge-base/Investigations/GitHub Pages Deployment.md"
+[OK] Index is up to date
 ```
 
 > Этот снимок не выполняет network fetch и показывает только локально известные refs.
