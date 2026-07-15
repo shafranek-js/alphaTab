@@ -2,13 +2,15 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T08:41:21.351Z
+updated: 2026-07-15T08:48:14.628Z
 ---
 
 # Последние изменения
 
 | Commit | Date | Subject |
 |---|---|---|
+| `32632af6` | 2026-07-15 | Merge pull request #1 from shafranek-js/codex/practice-perform-review-fixes |
+| `4ae4de99` | 2026-07-15 | docs: refresh repository knowledge snapshot |
 | `a200a8d6` | 2026-07-15 | Merge branch 'develop' into codex/practice-perform-review-fixes |
 | `d9de44b2` | 2026-07-15 | Merge pull request #2 from shafranek-js/codex/fix-baseline-ci |
 | `f8b93ad4` | 2026-07-15 | fix(native): normalize numeric test values |
@@ -27,7 +29,5 @@ updated: 2026-07-15T08:41:21.351Z
 | `bee55988` | 2026-06-14 | feat(playground): implement Perform Mode with timing scoring, speed scaling, and MIDI input synchronization |
 | `3f82a474` | 2026-06-14 | Disable playback looping during practice |
 | `838cdae7` | 2026-06-14 | Improve step practice loop workflow |
-| `29671f2b` | 2026-06-13 | fix: resolve repeated MIDI note cut-off issue in Step Practice mode |
-| `6c9e9312` | 2026-06-13 | fix(playground): implement reference counting for live midi input notes in PianoKeyboard |
 
 Для причин и последствий изменений используйте Git diff, tests и заметки в [[Investigations/README|Investigations]].

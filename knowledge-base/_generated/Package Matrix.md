@@ -2,7 +2,7 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T08:41:20.984Z
+updated: 2026-07-15T08:48:14.502Z
 ---
 
 # Матрица пакетов
