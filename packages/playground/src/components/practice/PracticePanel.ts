@@ -7,8 +7,10 @@ import {
     filterPracticeQueueByRange,
     getPlayableBeatsFromTracks,
     type PracticeInputResult,
+    type PracticeQueueItem,
     PracticeSession,
-    type PracticeSessionState
+    type PracticeSessionState,
+    resolvePracticeInputChannel
 } from './PracticeController';
 import { PracticeOverlay } from './PracticeOverlay';
 
@@ -352,14 +354,8 @@ export class PracticePanel implements Mountable {
     }
 
     public handleMidiNote(note: MidiNoteInput): void {
-        let channel = 0;
         const currentItem = this.session.getState().currentItem;
-        if (currentItem?.beat) {
-            channel = (currentItem.beat as any).voice?.bar?.staff?.track?.playbackInfo?.primaryChannel ?? 0;
-        }
-        if (channel === 0 && this.api.tracks && this.api.tracks.length > 0) {
-            channel = this.api.tracks[0].playbackInfo.primaryChannel;
-        }
+        const channel = this.getInputChannel(currentItem, note.note);
 
         this.keyboardPanel?.playInputNote(note.note, note.velocity, channel);
 
@@ -523,6 +519,17 @@ export class PracticePanel implements Mountable {
 
     private practiceStartTick(): number {
         return this.loopRange && this.api.playbackRange ? this.api.playbackRange.startTick : 0;
+    }
+
+    private getInputChannel(item: PracticeQueueItem<alphaTab.model.Beat> | null, inputNote: number): number {
+        const fallbackChannel = this.api.tracks?.[0]?.playbackInfo?.primaryChannel ?? 0;
+        return resolvePracticeInputChannel(
+            item,
+            inputNote,
+            this.session.getState().ignoreOctave,
+            beat => (beat as any).voice?.bar?.staff?.track?.playbackInfo?.primaryChannel,
+            fallbackChannel
+        );
     }
 }
 

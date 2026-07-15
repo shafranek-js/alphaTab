@@ -90,6 +90,97 @@ describe('MidiInputService', () => {
         expect(Number.isFinite(noteOffs[0])).toBe(true);
     });
 
+    it('releases active notes before switching to another input', async () => {
+        const firstInput = createInput('first', 'First Keyboard');
+        const secondInput = createInput('second', 'Second Keyboard');
+        const service = new MidiInputService({
+            requestMIDIAccess: async () => ({
+                inputs: new Map<string, FakeMidiInput>([
+                    [firstInput.id, firstInput],
+                    [secondInput.id, secondInput]
+                ]),
+                onstatechange: null
+            })
+        });
+        const noteOffs: number[] = [];
+        service.onMidiNoteOff(note => noteOffs.push(note.note));
+
+        await service.initMidi();
+        firstInput.onmidimessage?.({ data: [0x90, 60, 100] });
+        service.selectInput('second');
+
+        expect(noteOffs).toEqual([60]);
+        expect(firstInput.onmidimessage).toBeNull();
+    });
+
+    it('releases active notes when a MIDI input disconnects', async () => {
+        const input = createInput('first', 'First Keyboard');
+        const inputs = new Map<string, FakeMidiInput>([[input.id, input]]);
+        const access = {
+            inputs,
+            onstatechange: null as (() => void) | null
+        };
+        const service = new MidiInputService({ requestMIDIAccess: async () => access });
+        const noteOffs: number[] = [];
+        service.onMidiNoteOff(note => noteOffs.push(note.note));
+
+        await service.initMidi();
+        input.onmidimessage?.({ data: [0x90, 60, 100] });
+        inputs.delete(input.id);
+        access.onstatechange?.();
+
+        expect(noteOffs).toEqual([60]);
+        expect(input.onmidimessage).toBeNull();
+    });
+
+    it('keeps a shared pitch active until the last MIDI input releases it', async () => {
+        const firstInput = createInput('first', 'First Keyboard');
+        const secondInput = createInput('second', 'Second Keyboard');
+        const service = new MidiInputService({
+            requestMIDIAccess: async () => ({
+                inputs: new Map<string, FakeMidiInput>([
+                    [firstInput.id, firstInput],
+                    [secondInput.id, secondInput]
+                ]),
+                onstatechange: null
+            })
+        });
+        const noteOns: number[] = [];
+        const noteOffs: number[] = [];
+        service.onMidiNote(note => noteOns.push(note.note));
+        service.onMidiNoteOff(note => noteOffs.push(note.note));
+
+        await service.initMidi();
+        firstInput.onmidimessage?.({ data: [0x90, 60, 100] });
+        secondInput.onmidimessage?.({ data: [0x90, 60, 90] });
+        firstInput.onmidimessage?.({ data: [0x80, 60, 0] });
+
+        expect(noteOns).toEqual([60]);
+        expect(noteOffs).toEqual([]);
+
+        secondInput.onmidimessage?.({ data: [0x80, 60, 0] });
+        expect(noteOffs).toEqual([60]);
+    });
+
+    it('releases active notes before disposal clears callbacks', async () => {
+        const input = createInput('first', 'First Keyboard');
+        const service = new MidiInputService({
+            requestMIDIAccess: async () => ({
+                inputs: new Map<string, FakeMidiInput>([[input.id, input]]),
+                onstatechange: null
+            })
+        });
+        const noteOffs: number[] = [];
+        service.onMidiNoteOff(note => noteOffs.push(note.note));
+
+        await service.initMidi();
+        input.onmidimessage?.({ data: [0x90, 60, 100] });
+        service.dispose();
+
+        expect(noteOffs).toEqual([60]);
+        expect(input.onmidimessage).toBeNull();
+    });
+
 });
 
 function createInput(id: string, name: string): FakeMidiInput {

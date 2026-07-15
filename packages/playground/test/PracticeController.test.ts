@@ -8,6 +8,7 @@ import {
     PerformSession,
     type PracticeBeatSource,
     PracticeSession,
+    resolvePracticeInputChannel,
     selectTempoCursorItem
 } from '../src/components/practice/PracticeController';
 
@@ -18,9 +19,60 @@ describe('PracticeController', () => {
         const queue = buildPracticeQueue([rest, playable]);
 
         expect(queue).toHaveLength(1);
-        expect(queue[0].beat).toBe(playable);
+        expect(queue[0].beats).toEqual([playable]);
         expect(queue[0].expectedNotes).toEqual([60]);
         expect(queue[0].endTick).toBe(220);
+    });
+
+    it('groups simultaneous beats into one order-independent practice item', () => {
+        const upperStaff = beatAt([60, 64], 100, 120);
+        const lowerStaff = beatAt([48, 55], 100, 120);
+        const queue = buildPracticeQueue([upperStaff, lowerStaff]);
+
+        expect(queue).toHaveLength(1);
+        expect(queue[0].beats).toEqual([upperStaff, lowerStaff]);
+        expect(queue[0].expectedNotes).toEqual([60, 64, 48, 55]);
+
+        const session = new PracticeSession();
+        session.setQueue(queue);
+        session.start();
+
+        expect(session.handleMidiNote(48).type).toBe('partial');
+        expect(session.handleMidiNote(60).type).toBe('partial');
+        expect(session.handleMidiNote(55).type).toBe('partial');
+        expect(session.handleMidiNote(64).type).toBe('complete');
+    });
+
+    it('deduplicates the same simultaneous pitch while retaining every source beat and longest duration', () => {
+        const firstStaff = beatAt([60], 100, 120);
+        const secondStaff = beatAt([60], 100, 240);
+        const queue = buildPracticeQueue([firstStaff, secondStaff]);
+
+        expect(queue).toHaveLength(1);
+        expect(queue[0].expectedNotes).toEqual([60]);
+        expect(queue[0].expectedNoteDetails).toEqual([
+            { note: 60, endTick: 340, beats: [firstStaff, secondStaff] }
+        ]);
+
+        const session = new PracticeSession();
+        session.setQueue(queue);
+        session.start();
+        expect(session.handleMidiNote(60).type).toBe('complete');
+    });
+
+    it('keeps MIDI channel zero and resolves the channel from the matching source beat', () => {
+        const channelZeroBeat = beatAt([60], 100);
+        const otherBeat = beatAt([64], 100);
+        const queue = buildPracticeQueue([channelZeroBeat, otherBeat]);
+        const channels = new Map<PracticeBeatSource, number>([
+            [channelZeroBeat, 0],
+            [otherBeat, 4]
+        ]);
+
+        expect(resolvePracticeInputChannel(queue[0], 60, false, beat => channels.get(beat), 9)).toBe(0);
+        expect(resolvePracticeInputChannel(queue[0], 64, false, beat => channels.get(beat), 9)).toBe(4);
+        expect(resolvePracticeInputChannel(queue[0], 72, true, beat => channels.get(beat), 9)).toBe(0);
+        expect(resolvePracticeInputChannel(queue[0], 70, false, beat => channels.get(beat), 9)).toBe(0);
     });
 
     it('requires exact pitch by default', () => {
@@ -389,9 +441,9 @@ describe('PracticeController', () => {
             expect(looped.state.running).toBe(true);
             expect(looped.state.complete).toBe(false);
             expect(looped.state.currentIndex).toBe(0);
-            expect(looped.state.currentItem?.beat).toBe(firstBeat);
+            expect(looped.state.currentItem?.beats).toEqual([firstBeat]);
             expect(looped.state.currentItem?.startTick).toBe(100);
-            expect(looped.item.beat).toBe(lastBeat);
+            expect(looped.item.beats).toEqual([lastBeat]);
             expect(looped.state.currentPass).toBe(2);
         });
 
@@ -442,6 +494,18 @@ describe('PracticeController', () => {
     });
 
     describe('perform session', () => {
+        it('does not reset the active speed when settings are configured during a pass', () => {
+            const item = performItem(60, 100, 1000);
+            const session = performSession([item], { startSpeed: 0.7 });
+
+            session.configure({ startSpeed: 0.5, targetSpeed: 0.9, ignoreOctave: true });
+            expect(session.getState().speed).toBe(0.7);
+
+            session.stop();
+            session.start([item]);
+            expect(session.getState().speed).toBe(0.5);
+        });
+
         it('selects a tempo cursor item from playback ticks', () => {
             const b1 = beatAt([60], 100);
             const b2 = beatAt([62], 200);
@@ -449,9 +513,9 @@ describe('PracticeController', () => {
             const queue = buildPracticeQueue([b1, b2, b3]);
 
             expect(selectTempoCursorItem(queue, 50)).toBeNull();
-            expect(selectTempoCursorItem(queue, 100)?.beat).toBe(b1);
-            expect(selectTempoCursorItem(queue, 250)?.beat).toBe(b2);
-            expect(selectTempoCursorItem(queue, 350)?.beat).toBe(b3);
+            expect(selectTempoCursorItem(queue, 100)?.beats).toEqual([b1]);
+            expect(selectTempoCursorItem(queue, 250)?.beats).toEqual([b2]);
+            expect(selectTempoCursorItem(queue, 350)?.beats).toEqual([b3]);
             expect(selectTempoCursorItem(queue, 350, true)).toBeNull();
         });
 
@@ -460,8 +524,8 @@ describe('PracticeController', () => {
             const b2 = beatAt([62], 200);
             const queue = buildPracticeQueue([b1, b2]);
 
-            expect(selectTempoCursorItem(queue, 220)?.beat).toBe(b2);
-            expect(selectTempoCursorItem(queue, 100)?.beat).toBe(b1);
+            expect(selectTempoCursorItem(queue, 220)?.beats).toEqual([b2]);
+            expect(selectTempoCursorItem(queue, 100)?.beats).toEqual([b1]);
         });
 
         it('ignores scoring before expected wall timestamps are ready', () => {
@@ -594,8 +658,9 @@ function beatAt(
 }
 
 function performItem(pitch: number, startTick: number, expectedWallTimestampMs?: number): PerformExpectedItem<PracticeBeatSource> {
+    const sourceBeat = beatAt([pitch], startTick);
     return {
-        beat: beatAt([pitch], startTick),
+        sourceItem: buildPracticeQueue([sourceBeat])[0],
         pitch,
         startTick,
         expectedWallTimestampMs,

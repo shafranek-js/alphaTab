@@ -1,4 +1,4 @@
-import * as alphaTab from '@coderline/alphatab';
+import type * as alphaTab from '@coderline/alphatab';
 import type { MidiInputService, MidiInputState, MidiNoteInput } from '../../input/MidiInputService';
 import { css, html, injectStyles, type Mountable, parseHtml } from '../../util/Dom';
 import type { PianoKeyboard } from '../PianoKeyboard';
@@ -10,9 +10,10 @@ import {
     type PerformExpectedItem,
     type PerformInputResult,
     type PerformPassResult,
-    type PerformSettings,
     PerformSession,
+    type PerformSettings,
     type PracticeQueueItem,
+    resolvePracticeInputChannel,
     selectTempoCursorItem
 } from './PracticeController';
 import { PracticeOverlay } from './PracticeOverlay';
@@ -310,7 +311,7 @@ export class PerformPanel implements Mountable {
     }
 
     public handleMidiNote(note: MidiNoteInput): void {
-        this.keyboardPanel?.playInputNote(note.note, note.velocity, this.getInputChannel());
+        this.keyboardPanel?.playInputNote(note.note, note.velocity, this.getInputChannel(note.note));
         const result = this.session.handleNoteOn(note.note, note.timestampMs);
         this.applyInputResult(result);
     }
@@ -326,6 +327,10 @@ export class PerformPanel implements Mountable {
     private wireUi(): void {
         this.inputSelect.addEventListener('change', () => this.midiService.selectInput(this.inputSelect.value));
         this.ignoreOctaveInput.addEventListener('change', () => {
+            if (this.session.getState().running) {
+                this.applySettingsToInputs();
+                return;
+            }
             this.settings.ignoreOctave = this.ignoreOctaveInput.checked;
             this.session.configure(this.settings);
         });
@@ -344,16 +349,28 @@ export class PerformPanel implements Mountable {
             }
         });
         this.loopInput.addEventListener('change', () => {
+            if (this.session.getState().running) {
+                this.applySettingsToInputs();
+                return;
+            }
             this.loopEnabled = this.loopInput.checked;
             this.saveCustomSetting('performLoopEnabled', this.loopEnabled);
         });
         this.startSpeedInput.addEventListener('change', () => {
+            if (this.session.getState().running) {
+                this.applySettingsToInputs();
+                return;
+            }
             this.settings.startSpeed = this.readSpeed(this.startSpeedInput, defaultPerformSettings.startSpeed);
             this.startSpeedInput.value = this.settings.startSpeed.toFixed(1);
             this.saveCustomSetting('performStartSpeed', this.settings.startSpeed);
             this.session.configure(this.settings);
         });
         this.targetSpeedInput.addEventListener('change', () => {
+            if (this.session.getState().running) {
+                this.applySettingsToInputs();
+                return;
+            }
             this.settings.targetSpeed = this.readSpeed(this.targetSpeedInput, defaultPerformSettings.targetSpeed);
             this.targetSpeedInput.value = this.settings.targetSpeed.toFixed(1);
             this.saveCustomSetting('performTargetSpeed', this.settings.targetSpeed);
@@ -570,6 +587,7 @@ export class PerformPanel implements Mountable {
         this.lateEl.textContent = `Late ${displayedStats.lateCount}`;
         this.cleanEl.textContent = `Clean ${state.cleanPassStreak}`;
         this.speedEl.textContent = `${state.speed.toFixed(1)}x`;
+        this.setSessionControlsDisabled(state.running);
 
         if (state.running) {
             const practiceItem = this.toPracticeQueueItem(this.selectHintItem(state));
@@ -627,7 +645,7 @@ export class PerformPanel implements Mountable {
         for (const item of queue) {
             for (const pitch of item.expectedNotes) {
                 items.push({
-                    beat: item.beat,
+                    sourceItem: item,
                     pitch,
                     startTick: item.startTick,
                     matched: false
@@ -695,26 +713,24 @@ export class PerformPanel implements Mountable {
     }
 
     private toPracticeQueueItem(item: PerformExpectedItem<alphaTab.model.Beat> | null): PracticeQueueItem<alphaTab.model.Beat> | null {
-        if (!item) {
-            return null;
-        }
-        const expectedNotes = Array.from(
-            new Set(this.session.getExpectedItems().filter(expected => expected.beat === item.beat).map(expected => expected.pitch))
-        ).sort((a, b) => a - b);
-        const endTick = item.startTick + (item.beat.playbackDuration || 1);
-        return {
-            beat: item.beat,
-            expectedNotes,
-            expectedNoteDetails: expectedNotes.map(note => ({ note, endTick })),
-            startTick: item.startTick,
-            endTick
-        };
+        return item?.sourceItem ?? null;
     }
 
-    private getInputChannel(): number {
-        const current = this.session.getState().currentItem;
-        const beatTrack = current?.beat ? (current.beat as any).voice?.bar?.staff?.track : null;
-        return beatTrack?.playbackInfo?.primaryChannel ?? this.api.tracks?.[0]?.playbackInfo?.primaryChannel ?? 0;
+    private getInputChannel(inputNote: number): number {
+        const normalizedInput = this.settings.ignoreOctave ? inputNote % 12 : inputNote;
+        const matchingItem = this.session.getExpectedItems().find(item => {
+            const normalizedExpected = this.settings.ignoreOctave ? item.pitch % 12 : item.pitch;
+            return !item.matched && normalizedExpected === normalizedInput;
+        });
+        const sourceItem = matchingItem?.sourceItem ?? this.session.getState().currentItem?.sourceItem ?? null;
+        const fallbackChannel = this.api.tracks?.[0]?.playbackInfo?.primaryChannel ?? 0;
+        return resolvePracticeInputChannel(
+            sourceItem,
+            inputNote,
+            this.settings.ignoreOctave,
+            beat => (beat as any).voice?.bar?.staff?.track?.playbackInfo?.primaryChannel,
+            fallbackChannel
+        );
     }
 
     private copyPlaybackRange(range: alphaTab.synth.PlaybackRange | null): alphaTab.synth.PlaybackRange | null {
@@ -771,6 +787,13 @@ export class PerformPanel implements Mountable {
         this.startSpeedInput.value = this.settings.startSpeed.toFixed(1);
         this.targetSpeedInput.value = this.settings.targetSpeed.toFixed(1);
         this.session.configure(this.settings);
+    }
+
+    private setSessionControlsDisabled(disabled: boolean): void {
+        this.ignoreOctaveInput.disabled = disabled;
+        this.loopInput.disabled = disabled;
+        this.startSpeedInput.disabled = disabled;
+        this.targetSpeedInput.disabled = disabled;
     }
 
     private saveCustomSetting(key: string, value: any): void {

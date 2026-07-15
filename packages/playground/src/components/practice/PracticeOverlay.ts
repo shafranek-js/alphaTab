@@ -1,5 +1,5 @@
 import type * as alphaTab from '@coderline/alphatab';
-import { type Mountable, css, injectStyles, parseHtml } from '../../util/Dom';
+import { css, injectStyles, type Mountable, parseHtml } from '../../util/Dom';
 import type { PracticeQueueItem } from './PracticeController';
 
 type OverlayFeedback = 'current' | 'partial' | 'correct' | 'wrong';
@@ -107,7 +107,12 @@ export class PracticeOverlay implements Mountable {
 
     public showItem(item: PracticeQueueItem<alphaTab.model.Beat> | null, matchedNotes: number[] = []): void {
         const isSameItem =
-            item === this._lastItem || (item !== null && this._lastItem !== null && item.beat === this._lastItem.beat);
+            item === this._lastItem ||
+            (item !== null &&
+                this._lastItem !== null &&
+                item.startTick === this._lastItem.startTick &&
+                item.beats.length === this._lastItem.beats.length &&
+                item.beats.every((beat, index) => beat === this._lastItem!.beats[index]));
         if (isSameItem && this._lastFeedback === 'current' && this.areMatchedNotesEqual(matchedNotes)) {
             return;
         }
@@ -171,35 +176,42 @@ export class PracticeOverlay implements Mountable {
         feedback: OverlayFeedback,
         matchedNotes: number[] = []
     ): void {
-        const beatBounds = this.api.boundsLookup?.findBeat(item.beat);
-        if (!beatBounds) {
-            return;
-        }
-
         const matched = new Set(matchedNotes);
-        const expected = new Set(item.expectedNotes);
-        const noteBounds = beatBounds.notes?.filter(n => expected.has(n.note.realValue)) ?? [];
-        if (feedback === 'current') {
-            if (noteBounds.length === 0) {
-                this.addPulseTarget(beatBounds.realBounds);
-                return;
+        for (const beat of item.beats) {
+            const beatBounds = this.api.boundsLookup?.findBeat(beat);
+            if (!beatBounds) {
+                continue;
             }
-            for (const note of noteBounds) {
-                if (matched.has(note.note.realValue)) {
-                    this.addMark(note.noteHeadBounds, 'partial');
-                } else {
-                    this.addPulseTarget(note.noteHeadBounds);
-                }
-            }
-            return;
-        }
-        if (noteBounds.length === 0) {
-            this.addMark(beatBounds.realBounds, feedback);
-            return;
-        }
 
-        for (const note of noteBounds) {
-            this.addMark(note.noteHeadBounds, feedback);
+            const expected = new Set(
+                item.expectedNoteDetails.filter(note => note.beats.includes(beat)).map(note => note.note)
+            );
+            if (expected.size === 0) {
+                continue;
+            }
+            const noteBounds = beatBounds.notes?.filter(n => expected.has(n.note.realValue)) ?? [];
+            if (feedback === 'current') {
+                if (noteBounds.length === 0) {
+                    this.addPulseTarget(beatBounds.realBounds);
+                    continue;
+                }
+                for (const note of noteBounds) {
+                    if (matched.has(note.note.realValue)) {
+                        this.addMark(note.noteHeadBounds, 'partial');
+                    } else {
+                        this.addPulseTarget(note.noteHeadBounds);
+                    }
+                }
+                continue;
+            }
+            if (noteBounds.length === 0) {
+                this.addMark(beatBounds.realBounds, feedback);
+                continue;
+            }
+
+            for (const note of noteBounds) {
+                this.addMark(note.noteHeadBounds, feedback);
+            }
         }
     }
 

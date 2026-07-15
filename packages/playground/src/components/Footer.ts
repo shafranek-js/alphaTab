@@ -371,8 +371,18 @@ export class Footer implements Mountable {
         this.clearActiveInput();
         this.mediaSyncPanel.classList.toggle('open', mode === 'media-sync');
         this.keyboardPanel?.setOpen(this.isKeyboardVisible);
-        this.practicePanel?.setOpen(mode === 'practice');
-        this.performPanel?.setOpen(mode === 'perform');
+        if (mode === 'practice') {
+            // Perform and Practice share the keyboard hints. Close the previous mode before
+            // starting Practice so the Perform cleanup cannot erase the freshly rendered hints.
+            this.performPanel?.setOpen(false);
+            this.practicePanel?.setOpen(true);
+        } else if (mode === 'perform') {
+            this.practicePanel?.setOpen(false);
+            this.performPanel?.setOpen(true);
+        } else {
+            this.practicePanel?.setOpen(false);
+            this.performPanel?.setOpen(false);
+        }
         this.transport.setBottomPanelMode(mode);
     }
 

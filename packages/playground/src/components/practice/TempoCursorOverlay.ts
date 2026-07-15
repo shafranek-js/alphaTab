@@ -1,5 +1,5 @@
 import type * as alphaTab from '@coderline/alphatab';
-import { type Mountable, css, injectStyles, parseHtml } from '../../util/Dom';
+import { css, injectStyles, type Mountable, parseHtml } from '../../util/Dom';
 import type { PracticeQueueItem } from './PracticeController';
 
 injectStyles(
@@ -41,18 +41,27 @@ export class TempoCursorOverlay implements Mountable {
             return;
         }
 
-        const beatBounds = this.api.boundsLookup?.findBeat(item.beat);
-        if (!beatBounds) {
-            return;
-        }
+        const renderedStaves = new Set<alphaTab.model.Staff>();
+        for (const beat of item.beats) {
+            const staff = beat.voice.bar.staff;
+            if (renderedStaves.has(staff)) {
+                continue;
+            }
 
-        const bounds = beatBounds.realBounds;
-        const mark = document.createElement('div');
-        mark.className = 'at-tempo-cursor-mark';
-        mark.style.left = `${bounds.x}px`;
-        mark.style.top = `${bounds.y - 4}px`;
-        mark.style.height = `${Math.max(18, bounds.h + 8)}px`;
-        this.root.appendChild(mark);
+            const beatBounds = this.api.boundsLookup?.findBeat(beat);
+            if (!beatBounds) {
+                continue;
+            }
+            renderedStaves.add(staff);
+
+            const bounds = beatBounds.realBounds;
+            const mark = document.createElement('div');
+            mark.className = 'at-tempo-cursor-mark';
+            mark.style.left = `${bounds.x}px`;
+            mark.style.top = `${bounds.y - 4}px`;
+            mark.style.height = `${Math.max(18, bounds.h + 8)}px`;
+            this.root.appendChild(mark);
+        }
     }
 
     public clear(): void {
