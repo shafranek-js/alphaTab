@@ -2,7 +2,7 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T06:15:16.701Z
+updated: 2026-07-15T08:41:20.970Z
 ---
 
 # Снимок репозитория
@@ -10,13 +10,13 @@ updated: 2026-07-15T06:15:16.701Z
 | Поле | Значение |
 |---|---|
 | Branch | `codex/practice-perform-review-fixes` |
-| HEAD | `804957c139f0ab9d46d5966becfc8b4340ab9335` |
-| Commit | `804957c139 fix(playground): harden practice, perform, and MIDI lifecycle` |
-| Commit date | `2026-07-15T08:14:57+02:00` |
+| HEAD | `a200a8d622c8d2abef314564bc7a003630b930f4` |
+| Commit | `a200a8d622 Merge branch 'develop' into codex/practice-perform-review-fixes` |
+| Commit date | `2026-07-15T10:35:05+02:00` |
 | Origin | `https://github.com/shafranek-js/alphaTab.git` |
-| Tracking branch | — |
-| Ahead / behind tracking |  / ? |
-| Working tree | dirty (4 path(s)) |
+| Tracking branch | `origin/codex/practice-perform-review-fixes` |
+| Ahead / behind tracking | 0 / 0 |
+| Working tree | clean |
 
 ## CodeGraph
 
@@ -60,14 +60,6 @@ Files by Language:
   properties      2
 
 [OK] Index is up to date
-```
-## Working tree
-
-```text
-M package.json
-?? AGENTS.md
-?? knowledge-base/
-?? scripts/update-knowledge-base.mjs
 ```
 
 > Этот снимок не выполняет network fetch и показывает только локально известные refs.
