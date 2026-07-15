@@ -539,6 +539,7 @@ describe('AlphaSynthTests', () => {
     });
 });
 
+/** @internal */
 async function createReadySynth(): Promise<AlphaSynth> {
     const data = await TestPlatform.loadFile('test-data/audio/default.sf2');
     const score = ScoreLoader.loadAlphaTex('\\tempo 120 \\instrument 25 . 0.4.4');
@@ -553,12 +554,14 @@ async function createReadySynth(): Promise<AlphaSynth> {
     return synth;
 }
 
+/** @internal */
 function renderBuffers(output: TestOutput, count: number): void {
     for (let i = 0; i < count; i++) {
         output.next();
     }
 }
 
+/** @internal */
 function sampleEnergy(output: TestOutput): number {
     let energy = 0;
     for (const samples of output.samples) {

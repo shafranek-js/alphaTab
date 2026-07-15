@@ -26,6 +26,7 @@ import { PositionChangedEventArgs } from '@coderline/alphatab/synth/PositionChan
 import type { MidiEventsPlayedEventArgs } from '@coderline/alphatab/synth/MidiEventsPlayedEventArgs';
 import { TestUiFacade } from 'test/visualTests/TestUiFacade';
 
+/** @internal */
 class TestPlayer implements IAlphaSynth {
     public isReady: boolean = true;
     public isReadyForPlayback: boolean = false;

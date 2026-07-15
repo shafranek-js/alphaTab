@@ -14,17 +14,20 @@ import { Staff } from '@coderline/alphatab/model/Staff';
 import { Track } from '@coderline/alphatab/model/Track';
 import { Voice } from '@coderline/alphatab/model/Voice';
 
+/** @internal */
 interface MidiTempoChange {
     tick: number;
     beatsPerMinute: number;
 }
 
+/** @internal */
 interface MidiTimeSignatureChange {
     tick: number;
     numerator: number;
     denominator: number;
 }
 
+/** @internal */
 interface MidiProgramChange {
     tick: number;
     track: number;
@@ -32,11 +35,13 @@ interface MidiProgramChange {
     program: number;
 }
 
+/** @internal */
 interface MidiTrackName {
     track: number;
     name: string;
 }
 
+/** @internal */
 interface MidiNoteSegment {
     sourceTrack: number;
     channel: number;
@@ -46,6 +51,7 @@ interface MidiNoteSegment {
     end: number;
 }
 
+/** @internal */
 interface ImportedMidi {
     division: number;
     notes: MidiNoteSegment[];
@@ -55,6 +61,7 @@ interface ImportedMidi {
     trackNames: MidiTrackName[];
 }
 
+/** @internal */
 interface ActiveMidiNote {
     sourceTrack: number;
     channel: number;
@@ -63,6 +70,7 @@ interface ActiveMidiNote {
     start: number;
 }
 
+/** @internal */
 interface ScoreTrackInfo {
     key: string;
     sourceTrack: number;
@@ -73,6 +81,7 @@ interface ScoreTrackInfo {
     previousSplitNotes: Map<number, Note>;
 }
 
+/** @internal */
 interface BarInfo {
     start: number;
     end: number;
@@ -80,6 +89,7 @@ interface BarInfo {
     denominator: number;
 }
 
+/** @internal */
 interface BeatDurationInfo {
     duration: Duration;
     dots: number;
