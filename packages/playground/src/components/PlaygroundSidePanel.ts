@@ -1,5 +1,4 @@
 import * as alphaTab from '@coderline/alphatab';
-import { SystemsLayoutMode } from '@coderline/alphatab/DisplaySettings';
 import { css, html, injectStyles, type Mountable, mount, parseHtml } from '../util/Dom';
 import { FontAwesomeIcons } from '../util/Icons';
 import { applySuzukiNoteColors, getSuzukiColor, type NoteColorScheme } from '../util/noteColoring';
@@ -422,12 +421,12 @@ export class PlaygroundSidePanel implements Mountable {
                 this.selectRow(
                     'Systems Layout Mode',
                     [
-                        { value: String(SystemsLayoutMode.Automatic), label: 'Automatic' },
-                        { value: String(SystemsLayoutMode.UseModelLayout), label: 'Use Model Layout' }
+                        { value: String(alphaTab.SystemsLayoutMode.Automatic), label: 'Automatic' },
+                        { value: String(alphaTab.SystemsLayoutMode.UseModelLayout), label: 'Use Model Layout' }
                     ],
                     String(this.api.settings.display.systemsLayoutMode),
                     value => {
-                        this.api.settings.display.systemsLayoutMode = Number(value) as SystemsLayoutMode;
+                        this.api.settings.display.systemsLayoutMode = Number(value) as alphaTab.SystemsLayoutMode;
                         this.saveUserSetting('settings', 'display.systemsLayoutMode', Number(value));
                         this.render();
                     }

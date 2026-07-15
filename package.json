@@ -25,6 +25,7 @@
         "generate-typescript": "npm run generate-typescript --workspace=packages/alphatab",
 
         "build": "npm run build --workspace=packages/alphatab",
+        "build-pages": "node scripts/build-pages.mjs",
         "test": "npm run test --workspace=packages/alphatab",
 
         "build-web": "npm run build && npm run build-webpack && npm run build-vite",

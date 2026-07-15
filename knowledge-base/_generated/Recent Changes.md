@@ -2,13 +2,15 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T08:48:14.628Z
+updated: 2026-07-15T09:22:21.986Z
 ---
 
 # Последние изменения
 
 | Commit | Date | Subject |
 |---|---|---|
+| `69e718cb` | 2026-07-15 | Merge pull request #3 from shafranek-js/codex/refresh-kb-after-merge |
+| `8808f611` | 2026-07-15 | docs: refresh knowledge snapshot after merge |
 | `32632af6` | 2026-07-15 | Merge pull request #1 from shafranek-js/codex/practice-perform-review-fixes |
 | `4ae4de99` | 2026-07-15 | docs: refresh repository knowledge snapshot |
 | `a200a8d6` | 2026-07-15 | Merge branch 'develop' into codex/practice-perform-review-fixes |
@@ -27,7 +29,5 @@ updated: 2026-07-15T08:48:14.628Z
 | `b6a8de35` | 2026-06-15 | Fix playground practice playback issues |
 | `e429ece7` | 2026-06-14 | feat(practice): fix step practice MIDI sound & add competitor analysis |
 | `bee55988` | 2026-06-14 | feat(playground): implement Perform Mode with timing scoring, speed scaling, and MIDI input synchronization |
-| `3f82a474` | 2026-06-14 | Disable playback looping during practice |
-| `838cdae7` | 2026-06-14 | Improve step practice loop workflow |
 
 Для причин и последствий изменений используйте Git diff, tests и заметки в [[Investigations/README|Investigations]].
