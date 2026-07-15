@@ -115,6 +115,6 @@ describe('AlphaTabApiBase', () => {
         await promise;
         player.triggerReadyForPlayback();
 
-        expect(player.volumeChanges).toEqual([]);
+        expect(player.volumeChanges.length).toBe(0);
     });
 });
