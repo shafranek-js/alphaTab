@@ -9,7 +9,7 @@ import {
 import type { MidiFile } from '@coderline/alphatab/midi/MidiFile';
 import { ScoreLoader } from '@coderline/alphatab/importer/ScoreLoader';
 import { Settings } from '@coderline/alphatab/Settings';
-import type { LogLevel } from '@coderline/alphatab/LogLevel';
+import { LogLevel } from '@coderline/alphatab/LogLevel';
 import type { Score } from '@coderline/alphatab/model/Score';
 import { PlayerMode } from '@coderline/alphatab/PlayerSettings';
 import type { PlaybackRange } from '@coderline/alphatab/synth/PlaybackRange';
@@ -31,7 +31,7 @@ class TestPlayer implements IAlphaSynth {
     public isReady: boolean = true;
     public isReadyForPlayback: boolean = false;
     public state: PlayerState = PlayerState.Paused;
-    public logLevel!: LogLevel;
+    public logLevel: LogLevel = LogLevel.None;
     public masterVolume: number = 1;
     public metronomeVolume: number = 0;
     public playbackSpeed: number = 1;

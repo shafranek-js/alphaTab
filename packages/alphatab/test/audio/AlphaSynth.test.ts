@@ -419,7 +419,7 @@ describe('AlphaSynthTests', () => {
         testOutput.next();
         
         // Let's verify active voices count > 0
-        const tsf = (synth as any).synthesizer;
+        const tsf = (synth as any).synthesizer as TinySoundFont;
         expect(tsf.activeVoiceCount).toBeGreaterThan(0);
 
         // 3. Perform another seek (timePosition = 2000)
@@ -461,7 +461,7 @@ describe('AlphaSynthTests', () => {
         synth.loadSoundFont(data, false);
         synth.loadMidiFile(midi);
 
-        const tsf = (synth as any).synthesizer;
+        const tsf = (synth as any).synthesizer as TinySoundFont;
 
         // 0. Perform a seek to initialize the channels and presets
         synth.timePosition = 100;
@@ -566,7 +566,7 @@ function sampleEnergy(output: TestOutput): number {
     let energy = 0;
     for (const samples of output.samples) {
         for (const sample of samples) {
-            energy += Math.abs(sample);
+            energy += Math.abs(sample as unknown as number);
         }
     }
     return energy;

@@ -1498,16 +1498,10 @@ describe('MidiTickLookupTest', () => {
         settings.player.playerMode = PlayerMode.EnabledSynthesizer;
         const api = new AlphaTabApiBase<unknown>(facade, settings);
 
-        let resolveRendered!: (score: Score) => void;
-        let rejectRendered!: (error: unknown) => void;
-        const promise = new Promise<Score>((resolve, reject) => {
-            resolveRendered = resolve;
-            rejectRendered = reject;
+        const promise = new Promise<void>((resolve, reject) => {
+            api.postRenderFinished.on(() => resolve());
+            api.error.on(e => reject(e));
         });
-        api.postRenderFinished.on(() => {
-            resolveRendered(score);
-        });
-        api.error.on(e => rejectRendered(e));
         api.renderScore(score, [0]);
 
         await promise;
