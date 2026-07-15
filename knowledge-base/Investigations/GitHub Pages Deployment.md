@@ -23,7 +23,7 @@ tags:
 ## Решение
 
 - использовать `alphaTab()` из собственного Vite plugin проекта;
-- собирать `packages/alphatab/dist` перед Pages application, чтобы plugin обрабатывал опубликованную split-runtime структуру `alphaTab.mjs`, `alphaTab.core.mjs`, worker и worklet;
+- собирать `packages/alphatab/dist` и `packages/vite/dist` перед Pages application, чтобы config мог загрузить Vite plugin, а plugin — обработать опубликованную split-runtime структуру `alphaTab.mjs`, `alphaTab.core.mjs`, worker и worklet;
 - переопределить exact alias `@coderline/alphatab` на собранный `dist/alphaTab.mjs` только в Pages config;
 - получать base path из Pages и строить URL score/font/SoundFont через runtime meta tag;
 - копировать runtime assets и лицензии отдельным build script.

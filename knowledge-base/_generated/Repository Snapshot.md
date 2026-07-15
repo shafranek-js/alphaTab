@@ -2,17 +2,17 @@
 type: generated
 status: verified
 generated: true
-updated: 2026-07-15T09:25:19.201Z
+updated: 2026-07-15T09:35:28.854Z
 ---
 
 # Снимок репозитория
 
 | Поле | Значение |
 |---|---|
-| Branch | `codex/github-pages` |
-| HEAD | `7b77eceea91d271ab30ca52e74a47a7722f435b6` |
-| Commit | `7b77eceea9 feat(playground): deploy app to GitHub Pages` |
-| Commit date | `2026-07-15T11:25:06+02:00` |
+| Branch | `codex/fix-pages-ci` |
+| HEAD | `9ce9219cbaa80286354dabbf61e97d9854af577d` |
+| Commit | `9ce9219cba fix(ci): build Vite plugin before Pages app` |
+| Commit date | `2026-07-15T11:35:15+02:00` |
 | Origin | `https://github.com/shafranek-js/alphaTab.git` |
 | Tracking branch | — |
 | Ahead / behind tracking |  / ? |

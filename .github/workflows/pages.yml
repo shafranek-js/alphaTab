@@ -31,6 +31,8 @@ jobs:
       - run: npm ci
       - name: Build alphaTab web package
         run: npm run build
+      - name: Build alphaTab Vite plugin
+        run: npm run build-vite
       - name: Build public application
         run: npm run build-pages
         env:
